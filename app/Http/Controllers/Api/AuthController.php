@@ -42,13 +42,12 @@ class AuthController extends Controller
     }
 
     // ─── التحقق من OTP ────────────────────────────────
-   public function verifyOtp(Request $request)
+  public function verifyOtp(Request $request)
 {
     $request->validate([
         'otp' => ['required', 'digits:6'],
     ]);
 
-    // جلب آخر OTP مطابق للرمز المدخل
     $otp = Otp::where('code', $request->otp)
               ->whereNull('used_at')
               ->where('expires_at', '>', now())
@@ -59,7 +58,6 @@ class AuthController extends Controller
         return response()->json(['message' => 'رمز غير صالح أو منتهي.'], 422);
     }
 
-    // جلب المستخدم المرتبط بالـ OTP
     $user = User::find($otp->user_id);
 
     if (!$user) {
@@ -69,9 +67,15 @@ class AuthController extends Controller
     // تعليم الرمز كمستخدم
     $otp->markAsUsed();
 
-    // تفعيل الإيميل إذا لم يكن مفعلاً
+    // تفعيل الإيميل
     if (!$user->hasVerifiedEmail()) {
         $user->markEmailAsVerified();
+    }
+
+    // ⭐ تفعيل الحساب نفسه
+    if ($user->is_active == 0) {
+        $user->is_active = 1;
+        $user->save();
     }
 
     // إنشاء توكن الدخول
@@ -83,8 +87,8 @@ class AuthController extends Controller
         'role'    => $user->getRoleNames()->first(),
         'user'    => [
             'id'         => $user->id,
-            'first_name' => $user->first_name ?? null,
-            'last_name'  => $user->last_name ?? null,
+            'first_name' => $user->first_name,
+            'last_name'  => $user->last_name,
             'email'      => $user->email,
         ],
     ]);

@@ -20,7 +20,9 @@ class RolesAndAdminSeeder extends Seeder
         $admin = User::firstOrCreate(
             ['email' => 'admin@store.com'],
             [
-                'name'              => 'Admin',
+                'first_name' => 'Admin',
+                'last_name'  => 'User',
+
                 'password'          => Hash::make('Admin@1234'),
                 'email_verified_at' => now(), // الأدمن مفعّل مباشرة
             ]

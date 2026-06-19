@@ -17,19 +17,24 @@ class SizeController extends Controller
     }
 
     public function store(Request $request)
-    {
-        $request->validate([
-            'name' => ['required', 'string'],
-        ]);
+{
+    $request->validate([
+        'name' => 'required|string|max:255|unique:sizes,name',
+    ], [
+        'name.required' => 'اسم المقاس مطلوب.',
+        'name.unique'   => 'هذا المقاس موجود مسبقًا، لا يمكن إضافته مرة أخرى.',
+        'name.max'      => 'اسم المقاس طويل جدًا.',
+    ]);
 
-        $size = Size::create($request->only(['name']));
+    $size = Size::create($request->only(['name']));
 
-        return response()->json([
-            'status' => true,
-            'message' => 'Size added successfully',
-            'size' => $size
-        ]);
-    }
+    return response()->json([
+        'status' => true,
+        'message' => 'تم إضافة المقاس بنجاح',
+        'size' => $size
+    ]);
+}
+
 
     public function destroy(Size $size)
     {

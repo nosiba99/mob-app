@@ -21,9 +21,20 @@ class ColorController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'name' => ['required', 'string'],
-            'code' => ['nullable', 'string'],
-        ]);
+    'name' => 'required|string|max:255',
+    'code' => 'required|string|max:255',
+]);
+
+$exists = Color::where('name', $request->name)
+               ->where('code', $request->code)
+               ->exists();
+
+if ($exists) {
+    return response()->json([
+        'status'  => false,
+        'message' => 'هذا اللون بهذا الكود مضاف مسبقًا',
+    ], 422);
+}
 
         $color = Color::create($request->only(['name', 'code']));
 
