@@ -66,4 +66,9 @@ const ROLE_DELIVERY = 'delivery';
     {
         return !is_null($this->email_verified_at);
     }
+    public function area()
+{
+    return $this->belongsTo(Area::class, 'area_id');
+}
+
 }

@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\Admin\SizeController;
 use App\Http\Controllers\Api\Admin\AdminUserController;
 use App\Http\Controllers\Api\Admin\AdminOrderController;
 use App\Http\Controllers\Admin\DeliveryController;
+use App\Http\Controllers\Admin\AreaController;
 
 // User Controllers
 use App\Http\Controllers\Api\User\CategoryController as UserCategoryController;
@@ -25,7 +26,7 @@ use App\Http\Controllers\Api\User\ReviewController;
 // Delivery Controllers
 use App\Http\Controllers\Delivery\DeliveryAuthController;
 use App\Http\Controllers\Delivery\DeliveryOrderController;
-
+use App\Http\Controllers\Delivery\DeliveryStatusController;
 
 
 
@@ -71,6 +72,8 @@ Route::middleware(['auth:sanctum', 'role:admin'])->prefix('admin')->group(functi
     Route::delete('/categories/{id}', [AdminCategoryController::class, 'destroy']);
 
     // Colors
+    
+
     Route::get('/colors', [ColorController::class, 'index']);
     Route::post('/colors', [ColorController::class, 'store']);
     Route::delete('/colors/{color}', [ColorController::class, 'destroy']);
@@ -103,6 +106,17 @@ Route::middleware(['auth:sanctum', 'role:admin'])->prefix('admin')->group(functi
         Route::get('/{id}', [AdminOrderController::class, 'show']);
         Route::post('/{id}/status', [AdminOrderController::class, 'updateStatus']);
     });
+
+    Route::post('/create-area', [AreaController::class, 'store']);
+    Route::delete('/areas/{id}', [AreaController::class, 'destroy']);
+    Route::get('/areas', [AreaController::class, 'index']);
+    Route::get('/deliveries', [DeliveryController::class, 'index']);
+    Route::get('/deliveries/{id}', [DeliveryController::class, 'show']);
+    Route::put('/deliveries/{id}', [DeliveryController::class, 'update']);
+    Route::delete('/deliveries/{id}', [DeliveryController::class, 'destroy']);
+    Route::get('/deliveries/area/{areaId}', [DeliveryController::class, 'byArea']);
+
+
 });
 
 
@@ -121,6 +135,10 @@ Route::post('/delivery/login', [DeliveryAuthController::class, 'login']);
 
 // Delivery orders
 Route::middleware('auth:sanctum')->get('/delivery/orders', [DeliveryOrderController::class, 'index']);
+
+
+Route::middleware('auth:sanctum')->post('/delivery/toggle-availability', [DeliveryStatusController::class, 'toggleAvailability']);
+
 
 
 
