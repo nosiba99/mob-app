@@ -4,7 +4,7 @@ use Illuminate\Support\Facades\Route;
 
 // Auth Controllers
 use App\Http\Controllers\Api\AuthController;
-
+use App\Http\Controllers\Api\UserProfileController;
 // Admin Controllers
 use App\Http\Controllers\Api\Admin\CategoryController as AdminCategoryController;
 use App\Http\Controllers\Api\Admin\ProductController as AdminProductController;
@@ -29,8 +29,6 @@ use App\Http\Controllers\Delivery\DeliveryOrderController;
 use App\Http\Controllers\Delivery\DeliveryStatusController;
 
 
-
-
 /*
 |--------------------------------------------------------------------------
 | Public Auth Routes
@@ -42,16 +40,18 @@ Route::middleware('throttle:5,1')->group(function () {
     Route::post('/login',       [AuthController::class, 'login']);
     Route::post('/verify-otp',  [AuthController::class, 'verifyOtp']);
     Route::post('/resend-otp',  [AuthController::class, 'resendOtp']);
+
     Route::middleware('auth:sanctum')->post('/logout', [AuthController::class, 'logout']);
 
-
     Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
-    Route::post('/verify-reset-otp', [AuthController::class, 'verifyResetOtp']);   
+    Route::post('/verify-reset-otp', [AuthController::class, 'verifyResetOtp']);
     Route::middleware('auth:sanctum')->post('/reset-password', [AuthController::class, 'resetPassword']);
-
-
+    Route::middleware('auth:sanctum')->group(function () {
+    Route::get('/profile', [UserProfileController::class, 'show']);
+    Route::put('/profile/update', [UserProfileController::class, 'update']);
 });
 
+});
 
 
 /*
@@ -60,7 +60,7 @@ Route::middleware('throttle:5,1')->group(function () {
 |--------------------------------------------------------------------------
 */
 
-Route::middleware(['auth:sanctum', 'role:admin'])->prefix('admin')->group(function () {
+Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function () {
 
     // Categories
     Route::get('/categories', [AdminCategoryController::class, 'index']);
@@ -72,8 +72,6 @@ Route::middleware(['auth:sanctum', 'role:admin'])->prefix('admin')->group(functi
     Route::delete('/categories/{id}', [AdminCategoryController::class, 'destroy']);
 
     // Colors
-    
-
     Route::get('/colors', [ColorController::class, 'index']);
     Route::post('/colors', [ColorController::class, 'store']);
     Route::delete('/colors/{color}', [ColorController::class, 'destroy']);
@@ -93,11 +91,18 @@ Route::middleware(['auth:sanctum', 'role:admin'])->prefix('admin')->group(functi
     Route::post('/products/{product}/restore', [AdminProductController::class, 'restore']);
 
     // Users
+     Route::get('/users/banned', [AdminUserController::class, 'banned']);
+       Route::get('/users', [AdminUserController::class, 'index']);
     Route::prefix('users')->group(function () {
-        Route::get('/', [AdminUserController::class, 'index']);
+        
         Route::get('/{id}', [AdminUserController::class, 'show']);
         Route::post('/{id}/ban', [AdminUserController::class, 'ban']);
         Route::post('/{id}/unban', [AdminUserController::class, 'unban']);
+       
+
+
+
+
     });
 
     // Orders
@@ -105,20 +110,25 @@ Route::middleware(['auth:sanctum', 'role:admin'])->prefix('admin')->group(functi
         Route::get('/', [AdminOrderController::class, 'index']);
         Route::get('/{id}', [AdminOrderController::class, 'show']);
         Route::post('/{id}/status', [AdminOrderController::class, 'updateStatus']);
+        Route::get('/status/{status}', [AdminOrderController::class, 'getByStatus']);
+        Route::get('/search', [AdminOrderController::class, 'search']);
+
+
+
     });
 
+    // Areas
     Route::post('/create-area', [AreaController::class, 'store']);
     Route::delete('/areas/{id}', [AreaController::class, 'destroy']);
     Route::get('/areas', [AreaController::class, 'index']);
+
+    // Deliveries
     Route::get('/deliveries', [DeliveryController::class, 'index']);
     Route::get('/deliveries/{id}', [DeliveryController::class, 'show']);
     Route::put('/deliveries/{id}', [DeliveryController::class, 'update']);
     Route::delete('/deliveries/{id}', [DeliveryController::class, 'destroy']);
     Route::get('/deliveries/area/{areaId}', [DeliveryController::class, 'byArea']);
-
-
 });
-
 
 
 /*
@@ -128,18 +138,15 @@ Route::middleware(['auth:sanctum', 'role:admin'])->prefix('admin')->group(functi
 */
 
 // Admin creates delivery employee
-Route::post('/admin/create-delivery', [DeliveryController::class, 'store']);
+Route::middleware(['auth:sanctum', 'admin'])->post('/admin/create-delivery', [DeliveryController::class, 'store']);
 
 // Delivery login
 Route::post('/delivery/login', [DeliveryAuthController::class, 'login']);
 
 // Delivery orders
-Route::middleware('auth:sanctum')->get('/delivery/orders', [DeliveryOrderController::class, 'index']);
+Route::middleware(['auth:sanctum', 'delivery'])->get('/delivery/orders', [DeliveryOrderController::class, 'index']);
 
-
-Route::middleware('auth:sanctum')->post('/delivery/toggle-availability', [DeliveryStatusController::class, 'toggleAvailability']);
-
-
+Route::middleware(['auth:sanctum', 'delivery'])->post('/delivery/toggle-availability', [DeliveryStatusController::class, 'toggleAvailability']);
 
 
 /*
@@ -154,7 +161,7 @@ Route::prefix('user')->group(function () {
     Route::get('/categories', [UserCategoryController::class, 'index']);
 });
 
-Route::middleware(['auth:sanctum'])->prefix('user')->group(function () {
+Route::middleware(['auth:sanctum', 'user'])->prefix('user')->group(function () {
 
     Route::post('/checkout', [OrderController::class, 'checkout']);
     Route::get('/orders', [OrderController::class, 'myOrders']);

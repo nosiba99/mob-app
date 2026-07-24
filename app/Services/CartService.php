@@ -1,9 +1,10 @@
 <?php
-// app/Services/CartService.php
+
 namespace App\Services;
 
 use App\Models\CartItem;
 use App\Models\ProductVariant;
+use App\Models\ProductVariantSize;
 use App\Models\User;
 
 class CartService
@@ -11,7 +12,7 @@ class CartService
     public function getCart(User $user): array
     {
         $items = CartItem::where('user_id', $user->id)
-            ->with(['product.mainImage', 'variant'])
+            ->with(['product.mainImage', 'variant', 'size'])
             ->get();
 
         $total = $items->sum(fn($item) =>
@@ -24,41 +25,42 @@ class CartService
     public function addOrUpdate(User $user, array $data): CartItem
     {
         // 1 — جيبي الـ variant
-        $variant = ProductVariant::where('product_id', $data['product_id'])
-            ->where('size',  $data['size']  ?? null)
-            ->where('color', $data['color'] ?? null)
-            ->first();
+        $variant = ProductVariant::find($data['variant_id']);
 
         if (!$variant) {
-            throw new \Exception('هذا اللون أو المقاس غير متوفر.');
+            throw new \Exception('الفاريانت غير موجود.');
         }
 
-        // 2 — تحقق من المخزون
-        // لو في item موجود، اجمع الكمية القديمة مع الجديدة
-        $existingItem = CartItem::where('user_id',    $user->id)
-            ->where('product_id', $data['product_id'])
-            ->where('size',       $data['size']  ?? null)
-            ->where('color',      $data['color'] ?? null)
+        // 2 — جيبي الـ size داخل الفاريانت
+        $variantSize = ProductVariantSize::where('product_variant_id', $variant->id)
+            ->where('size_id', $data['size_id'])
+            ->first();
+
+        if (!$variantSize) {
+            throw new \Exception('هذا المقاس غير متوفر لهذا الفاريانت.');
+        }
+
+        // 3 — تحقق من المخزون
+        $existingItem = CartItem::where('user_id', $user->id)
+            ->where('variant_id', $variant->id)
+            ->where('size_id', $data['size_id'])
             ->first();
 
         $totalQty = $data['quantity'] + ($existingItem?->quantity ?? 0);
 
-        if (!$variant->isAvailable($totalQty)) {
-            throw new \Exception(
-                "الكمية المطلوبة غير متوفرة. المتاح: {$variant->stock} قطعة."
-            );
+        if ($variantSize->stock < $totalQty) {
+            throw new \Exception("الكمية المطلوبة غير متوفرة. المتاح: {$variantSize->stock} قطعة.");
         }
 
-        // 3 — أضف أو حدّث
+        // 4 — أضف أو حدّث
         return CartItem::updateOrCreate(
             [
                 'user_id'    => $user->id,
-                'product_id' => $data['product_id'],
-                'size'       => $data['size']  ?? null,
-                'color'      => $data['color'] ?? null,
+                'variant_id' => $variant->id,
+                'size_id'    => $data['size_id'],
             ],
             [
-                'variant_id' => $variant->id,
+                'product_id' => $variant->product_id,
                 'quantity'   => $totalQty,
             ]
         );
@@ -69,15 +71,16 @@ class CartService
         $item = CartItem::where('user_id', $user->id)
             ->findOrFail($cartItemId);
 
-        // تحقق من المخزون
-        if (!$item->variant->isAvailable($quantity)) {
-            throw new \Exception(
-                "الكمية المطلوبة غير متوفرة. المتاح: {$item->variant->stock} قطعة."
-            );
+        $variantSize = ProductVariantSize::where('product_variant_id', $item->variant_id)
+            ->where('size_id', $item->size_id)
+            ->first();
+
+        if ($variantSize->stock < $quantity) {
+            throw new \Exception("الكمية المطلوبة غير متوفرة. المتاح: {$variantSize->stock} قطعة.");
         }
 
         $item->update(['quantity' => $quantity]);
-        return $item->fresh('product', 'variant');
+        return $item->fresh('product', 'variant', 'size');
     }
 
     public function remove(User $user, int $cartItemId): void

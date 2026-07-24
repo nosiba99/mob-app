@@ -12,7 +12,7 @@ class User extends Authenticatable
 {
     use HasApiTokens, HasRoles, SoftDeletes, Notifiable;
 
-    protected $fillable = [
+  protected $fillable = [
     'email',
     'first_name',
     'last_name',
@@ -21,7 +21,9 @@ class User extends Authenticatable
     'role',
     'area_id',
     'is_active',
+    'is_banned',   // 🔥 أضيفيه هنا
 ];
+
 const ROLE_USER = 'user';
 const ROLE_ADMIN = 'admin';
 const ROLE_DELIVERY = 'delivery';

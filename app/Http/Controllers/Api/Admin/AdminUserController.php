@@ -3,27 +3,32 @@
 namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\User;
 use Illuminate\Http\Request;
+use App\Services\UserService;
+use App\Models\User;
 
 class AdminUserController extends Controller
 {
-    // عرض كل المستخدمين
-    public function index()
-    {
-        $users = User::select('id', 'name', 'email','created_at')
-                     ->orderBy('id', 'desc')
-                     ->paginate(20);
+    public function __construct(private UserService $userService) {}
 
-        return response()->json([
-            'status' => true,
-            'message' => 'تم جلب المستخدمين بنجاح',
-            'data' => $users,
-        ]);
-    }
+    // عرض كل المستخدمين
+  
+public function index()
+{
+    $users = User::select('id', 'first_name', 'last_name')
+                 ->where('is_banned', false)
+                 ->orderBy('id', 'desc')
+                 ->paginate(10);
+
+    return response()->json([
+        'status'  => true,
+        'message' => 'تم جلب المستخدمين العاديين',
+        'data'    => $users
+    ], 200);
+}
 
     // عرض مستخدم واحد
-   public function show($id)
+ public function show($id)
 {
     $user = User::find($id);
 
@@ -35,19 +40,23 @@ class AdminUserController extends Controller
     }
 
     return response()->json([
-        'status' => true,
-        'message' => 'تم جلب بيانات المستخدم بنجاح',
-        'data' => $user
-    ]);
+        'status'  => true,
+        'message' => 'تم جلب بيانات المستخدم',
+        'data'    => $user
+    ], 200);
 }
-
 
     // حظر مستخدم
     public function ban($id)
     {
-        $user = User::findOrFail($id);
-        $user->is_banned = true;
-        $user->save();
+        $done = $this->userService->banUser($id);
+
+        if (!$done) {
+            return response()->json([
+                'status' => false,
+                'message' => 'المستخدم غير موجود'
+            ], 404);
+        }
 
         return response()->json([
             'status' => true,
@@ -58,13 +67,33 @@ class AdminUserController extends Controller
     // إلغاء الحظر
     public function unban($id)
     {
-        $user = User::findOrFail($id);
-        $user->is_banned = false;
-        $user->save();
+        $done = $this->userService->unbanUser($id);
+
+        if (!$done) {
+            return response()->json([
+                'status' => false,
+                'message' => 'المستخدم غير موجود'
+            ], 404);
+        }
 
         return response()->json([
             'status' => true,
             'message' => 'تم إلغاء حظر المستخدم بنجاح',
         ]);
     }
+public function banned()
+{
+    $users = User::select('id', 'first_name', 'last_name')
+                 ->where('is_banned', true)
+                 ->paginate(10);
+
+    return response()->json([
+        'status'  => true,
+        'message' => 'تم جلب المستخدمين المحظورين',
+        'data'    => $users
+    ], 200);
+}
+
+
+
 }

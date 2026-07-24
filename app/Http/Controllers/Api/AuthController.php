@@ -1,137 +1,117 @@
 <?php
+
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\RegisterRequest;
+use App\Http\Requests\Auth\LoginRequest;
+use App\Http\Requests\Auth\ResetPasswordRequest;
+use App\Services\AuthService;
+use App\Services\OtpService;
 use App\Models\User;
 use App\Models\Otp;
-use App\Services\OtpService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Mail;   // ✔ مهم جدًا
-use App\Mail\ResetPasswordOtpMail;     // ✔ مهم جدًا
+use Illuminate\Support\Facades\Mail;
+use App\Mail\ResetPasswordOtpMail;
 
 class AuthController extends Controller
 {
-    public function __construct(private OtpService $otpService) {}
+    public function __construct(
+        private AuthService $authService,
+        private OtpService $otpService
+    ) {}
 
     // ─── تسجيل ───────────────────────────────────────
     public function register(RegisterRequest $request)
     {
-        $user = DB::transaction(function () use ($request) {
-            $user = User::create([
-                
-                'first_name' => $request->first_name,
-                'last_name'  => $request->last_name,
-   
-                'email'    => $request->email,
-                'password' => Hash::make($request->password),
-            ]);
-
-            $user->assignRole('user');
-
-            return $user;
-        });
-
-        $this->otpService->generate($user, 'email_verification');
+        $this->authService->register($request->validated());
 
         return response()->json([
+            'status'  => true,
             'message' => 'تم التسجيل! تحقق من بريدك الإلكتروني.',
         ], 201);
     }
 
     // ─── التحقق من OTP ────────────────────────────────
-  public function verifyOtp(Request $request)
-{
-    $request->validate([
-        'otp' => ['required', 'digits:6'],
-    ]);
-
-    $otp = Otp::where('code', $request->otp)
-              ->whereNull('used_at')
-              ->where('expires_at', '>', now())
-              ->latest()
-              ->first();
-
-    if (!$otp) {
-        return response()->json(['message' => 'رمز غير صالح أو منتهي.'], 422);
-    }
-
-    $user = User::find($otp->user_id);
-
-    if (!$user) {
-        return response()->json(['message' => 'المستخدم غير موجود.'], 404);
-    }
-
-    // تعليم الرمز كمستخدم
-    $otp->markAsUsed();
-
-    // تفعيل الإيميل
-    if (!$user->hasVerifiedEmail()) {
-        $user->markEmailAsVerified();
-    }
-
-    // ⭐ تفعيل الحساب نفسه
-    if ($user->is_active == 0) {
-        $user->is_active = 1;
-        $user->save();
-    }
-
-    // إنشاء توكن الدخول
-    $token = $user->createToken('auth_token')->plainTextToken;
-
-    return response()->json([
-        'message' => 'تم التحقق وتفعيل الحساب بنجاح.',
-        'token'   => $token,
-        'role'    => $user->getRoleNames()->first(),
-        'user'    => [
-            'id'         => $user->id,
-            'first_name' => $user->first_name,
-            'last_name'  => $user->last_name,
-            'email'      => $user->email,
-        ],
-    ]);
-}
-
-
-    // ─── تسجيل الدخول ────────────────────────────────
-    public function login(Request $request)
+    public function verifyOtp(Request $request)
     {
         $request->validate([
-            'email'    => ['required', 'email'],
-            'password' => ['required'],
+            'email' => 'required|email|exists:users,email',
+            'otp'   => 'required|digits:6',
         ]);
 
         $user = User::where('email', $request->email)->first();
 
-        if (!$user || !Hash::check($request->password, $user->password)) {
-            return response()->json(['message' => 'بيانات الدخول غير صحيحة.'], 401);
+        if (!$this->otpService->verify($user, $request->otp, 'email_verification')) {
+            return response()->json([
+                'status'  => false,
+                'message' => 'رمز غير صالح أو منتهي.'
+            ], 422);
         }
-if ($user->is_banned) {
-    return response()->json([
-        'status' => false,
-        'message' => 'تم حظر حسابك من قبل الإدارة'
-    ], 403);
-}
 
-        // استخدام الميثود الجاهزة في لارافيل لـ التحقق من التفعيل
         if (!$user->hasVerifiedEmail()) {
-            $this->otpService->generate($user, 'email_verification');
-            return response()->json(['message' => 'حسابك غير مفعّل. أُرسل رمز جديد لبريدك.'], 403);
+            $user->markEmailAsVerified();
+        }
+
+        if ($user->is_active == 0) {
+            $user->update(['is_active' => 1]);
         }
 
         $token = $user->createToken('auth_token')->plainTextToken;
 
         return response()->json([
-            'token' => $token,
-            'role'  => $user->getRoleNames()->first(),
-            'user'  => [
-                'id'    => $user->id,
-                 'first_name' => $user->first_name,
-                 'last_name'  => $user->last_name,
-       
-                'email' => $user->email,
+            'status'  => true,
+            'message' => 'تم التحقق وتفعيل الحساب بنجاح',
+            'token'   => $token,
+            'user'    => [
+                'id'         => $user->id,
+                'first_name' => $user->first_name,
+                'last_name'  => $user->last_name,
+                'email'      => $user->email,
+                'role'       => $user->getRoleNames()->first(),
+            ],
+        ]);
+    }
+
+    // ─── تسجيل الدخول ────────────────────────────────
+    public function login(LoginRequest $request)
+    {
+        $result = $this->authService->login($request->validated());
+
+        if (!$result) {
+            return response()->json([
+                'status'  => false,
+                'message' => 'بيانات الدخول غير صحيحة.'
+            ], 401);
+        }
+
+        $user = $result['user'];
+
+        if ($user->is_banned) {
+            return response()->json([
+                'status'  => false,
+                'message' => 'تم حظر حسابك من قبل الإدارة'
+            ], 403);
+        }
+
+        if (!$user->hasVerifiedEmail()) {
+            $this->otpService->generate($user, 'email_verification');
+            return response()->json([
+                'status'  => false,
+                'message' => 'حسابك غير مفعّل. أُرسل رمز جديد لبريدك.'
+            ], 403);
+        }
+
+        return response()->json([
+            'status'  => true,
+            'message' => 'تم تسجيل الدخول بنجاح',
+            'token'   => $result['token'],
+            'user'    => [
+                'id'         => $user->id,
+                'first_name' => $user->first_name,
+                'last_name'  => $user->last_name,
+                'email'      => $user->email,
+                'role'       => $user->getRoleNames()->first(),
             ],
         ]);
     }
@@ -140,89 +120,95 @@ if ($user->is_banned) {
     public function logout(Request $request)
     {
         $request->user()->currentAccessToken()->delete();
-        return response()->json(['message' => 'تم تسجيل الخروج.']);
+
+        return response()->json([
+            'status'  => true,
+            'message' => 'تم تسجيل الخروج.'
+        ]);
     }
 
     // ─── إعادة إرسال OTP ─────────────────────────────
     public function resendOtp(Request $request)
     {
-        $request->validate(['email' => ['required', 'email', 'exists:users,email']]);
+        $request->validate(['email' => 'required|email|exists:users,email']);
 
-        $user = User::where('email', $request->email)->firstOrFail();
-
+        $user = User::where('email', $request->email)->first();
         $this->otpService->generate($user, 'email_verification');
 
-        return response()->json(['message' => 'تم إرسال رمز جديد.']);
- 
-        }
-
-
-  public function forgotPassword(Request $request)
-{
-    $request->validate([
-        'email' => 'required|email|exists:users,email',
-    ]);
-
-    $user = User::where('email', $request->email)->first();
-
-    $otp = rand(100000, 999999);
-
-    Otp::create([
-        'user_id' => $user->id,
-        'code' => $otp,
-        'type' => 'password_reset',
-        'expires_at' => now()->addMinutes(10)
-    ]);
-
-    Mail::to($user->email)->send(new ResetPasswordOtpMail($otp));
-
-    return response()->json(['message' => 'OTP sent to your email']);
-}
-
-public function verifyResetOtp(Request $request)
-{
-    $request->validate([
-        'otp' => 'required'
-    ]);
-
-    $otpRecord = Otp::where('code', $request->otp)
-        ->where('expires_at', '>', now())
-        ->whereNull('used_at')
-        ->first();
-
-    if (!$otpRecord) {
-        return response()->json(['message' => 'Invalid or expired OTP'], 400);
+        return response()->json([
+            'status'  => true,
+            'message' => 'تم إرسال رمز جديد.'
+        ]);
     }
 
-    $otpRecord->update(['used_at' => now()]);
+    // ─── نسيان كلمة المرور ───────────────────────────
+    public function forgotPassword(Request $request)
+    {
+        $request->validate(['email' => 'required|email|exists:users,email']);
 
-    // اعمل تسجيل دخول تلقائي
-    $user = User::find($otpRecord->user_id);
-    $token = $user->createToken('reset-password')->plainTextToken;
+        $user = User::where('email', $request->email)->first();
+        $otp  = rand(100000, 999999);
 
-    return response()->json([
-        'message' => 'OTP verified',
-        'token' => $token
-    ]);
-}
+        Otp::create([
+            'user_id'    => $user->id,
+            'code'       => $otp,
+            'type'       => 'password_reset',
+            'expires_at' => now()->addMinutes(10),
+        ]);
 
+        Mail::to($user->email)->send(new ResetPasswordOtpMail($otp));
 
-public function resetPassword(Request $request)
+        return response()->json([
+            'status'  => true,
+            'message' => 'تم إرسال رمز إعادة التعيين إلى بريدك.'
+        ]);
+    }
+
+    // ─── التحقق من OTP لإعادة التعيين ────────────────
+    public function verifyResetOtp(Request $request)
+    {
+        $request->validate(['otp' => 'required']);
+
+        $otpRecord = Otp::where('code', $request->otp)
+            ->where('type', 'password_reset')
+            ->where('expires_at', '>', now())
+            ->whereNull('used_at')
+            ->first();
+
+        if (!$otpRecord) {
+            return response()->json([
+                'status'  => false,
+                'message' => 'رمز غير صالح أو منتهي.'
+            ], 400);
+        }
+
+        $otpRecord->update(['used_at' => now()]);
+
+        $user  = User::find($otpRecord->user_id);
+        $token = $user->createToken('reset-password')->plainTextToken;
+
+        return response()->json([
+            'status'  => true,
+            'message' => 'تم التحقق من الرمز',
+            'token'   => $token,
+        ]);
+    }
+
+    // ─── إعادة تعيين كلمة المرور ─────────────────────
+  
+
+public function resetPassword(ResetPasswordRequest $request)
 {
-    $request->validate([
-        'password' => 'required|confirmed|min:6'
-    ]);
-
-    $user = $request->user(); // جاي من التوكن
+    $user = $request->user();
 
     $user->update([
-        'password' => bcrypt($request->password)
+        'password' => bcrypt($request->password),
     ]);
 
-    return response()->json(['message' => 'Password reset successfully']);
+    return response()->json([
+        'status'  => true,
+        'message' => 'تم تغيير كلمة المرور بنجاح'
+    ]);
 }
-
-
-
 
 }

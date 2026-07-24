@@ -2,56 +2,69 @@
 
 namespace App\Http\Controllers\Api\Admin;
 
-
 use App\Http\Controllers\Controller;
+use App\Services\ColorService;
 use App\Models\Color;
 use Illuminate\Http\Request;
 
-
 class ColorController extends Controller
 {
-    public function index()
+    public function __construct(private ColorService $colorService) {}
+
+    private function success($message, $data = null)
     {
         return response()->json([
-            'status' => true,
-            'colors' => Color::all()
+            'status'  => true,
+            'message' => $message,
+            'data'    => $data
         ]);
     }
 
+    private function error($message, $code = 400)
+    {
+        return response()->json([
+            'status'  => false,
+            'message' => $message,
+            'data'    => null
+        ], $code);
+    }
+
+    // عرض كل الألوان
+    public function index()
+    {
+        $colors = $this->colorService->getAll();
+        return $this->success('Colors fetched successfully', $colors);
+    }
+
+    // إضافة لون جديد
     public function store(Request $request)
     {
         $request->validate([
-    'name' => 'required|string|max:255',
-    'code' => 'required|string|max:255',
-]);
+            'name' => 'required|string|max:255',
+            'code' => 'required|string|max:255',
+        ]);
 
-$exists = Color::where('name', $request->name)
-               ->where('code', $request->code)
-               ->exists();
+        $color = $this->colorService->create($request->all());
 
-if ($exists) {
-    return response()->json([
-        'status'  => false,
-        'message' => 'هذا اللون بهذا الكود مضاف مسبقًا',
-    ], 422);
+        if (!$color) {
+            return $this->error('هذا اللون بهذا الكود مضاف مسبقًا', 422);
+        }
+
+        return $this->success('Color added successfully', $color);
+    }
+
+    // حذف لون
+    public function destroy($id)
+{
+    $color = Color::find($id);
+
+    if (!$color) {
+        return $this->error('اللون غير موجود', 404);
+    }
+
+    $this->colorService->delete($color);
+
+    return $this->success('تم حذف اللون بنجاح');
 }
 
-        $color = Color::create($request->only(['name', 'code']));
-
-        return response()->json([
-            'status' => true,
-            'message' => 'Color added successfully',
-            'color' => $color
-        ]);
-    }
-
-    public function destroy(Color $color)
-    {
-        $color->delete();
-
-        return response()->json([
-            'status' => true,
-            'message' => 'Color deleted successfully'
-        ]);
-    }
 }

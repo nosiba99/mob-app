@@ -3,12 +3,34 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Services\AdminDeliveryService;
 use App\Models\User;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rule;
 
 class DeliveryController extends Controller
 {
+    public function __construct(private AdminDeliveryService $deliveryService) {}
+
+    private function success($message, $data = null)
+    {
+        return response()->json([
+            'status'  => true,
+            'message' => $message,
+            'data'    => $data
+        ]);
+    }
+
+    private function error($message, $code = 400)
+    {
+        return response()->json([
+            'status'  => false,
+            'message' => $message,
+            'data'    => null
+        ], $code);
+    }
+
+    // إنشاء مندوب جديد
     public function store(Request $request)
     {
         $validated = $request->validate([
@@ -25,125 +47,92 @@ class DeliveryController extends Controller
             'delivery_notes'    => 'nullable|string',
         ]);
 
-        $delivery = User::create([
-            'first_name' => $validated['first_name'],
-            'last_name'  => $validated['last_name'],
-            'phone'      => $validated['phone'],
-            'email'      => $validated['email'] ?? null,
-            'password'   => Hash::make($validated['password']),
-            'role'       => 'delivery',
-            'area_id'    => $validated['area_id'],
-            'address'    => $validated['address'],
-            'building_number'  => $validated['building_number'] ?? null,
-            'floor_number'     => $validated['floor_number'] ?? null,
-            'apartment_number' => $validated['apartment_number'] ?? null,
-            'delivery_notes'   => $validated['delivery_notes'] ?? null,
+        $delivery = $this->deliveryService->create($validated);
 
-            // مهم جدًا
-            'is_active'     => true,
-            'is_available'  => true,
-            'active_orders' => 0,
-        ]);
-
-        return response()->json([
-            'message' => 'Delivery employee created successfully',
-            'data' => $delivery
-        ], 201);
+        return $this->success('Delivery employee created successfully', $delivery);
     }
 
+    // عرض كل المندوبين
     public function index()
-{
-    $deliveries = \App\Models\User::where('role', 'delivery')
-        ->with('area') // إذا عندك علاقة area() في الموديل
-        ->get();
-
-    return response()->json([
-        'message' => 'Delivery employees retrieved successfully',
-        'data' => $deliveries
-    ], 200);
-}
-public function show($id)
-{
-    $delivery = \App\Models\User::where('role', 'delivery')
-        ->with('area')
-        ->find($id);
-
-    if (!$delivery) {
-        return response()->json([
-            'message' => 'Delivery employee not found'
-        ], 404);
+    {
+        $deliveries = $this->deliveryService->getAll();
+        return $this->success('Delivery employees retrieved successfully', $deliveries);
     }
 
-    return response()->json([
-        'message' => 'Delivery employee retrieved successfully',
-        'data' => $delivery
-    ], 200);
-}
+    // عرض مندوب واحد
+    public function show($id)
+    {
+        $delivery = $this->deliveryService->getById($id);
+
+        if (!$delivery) {
+            return $this->error('Delivery employee not found', 404);
+        }
+
+        return $this->success('Delivery employee retrieved successfully', $delivery);
+    }
+
+  
 
 public function update(Request $request, $id)
 {
-    $delivery = \App\Models\User::where('role', 'delivery')->find($id);
+    $delivery = User::where('role', 'delivery')->find($id);
 
     if (!$delivery) {
-        return response()->json([
-            'message' => 'Delivery employee not found'
-        ], 404);
+        return $this->error('Delivery employee not found', 404);
     }
 
     $request->validate([
         'first_name' => 'sometimes|string',
         'last_name'  => 'sometimes|string',
-        'phone'      => 'sometimes|string',
-        'email'      => 'sometimes|email|unique:users,email,' . $id,
+
+        'phone'      => [
+            'sometimes',
+            'string',
+            Rule::unique('users', 'phone')->ignore($delivery->id),
+        ],
+
+        'email'      => [
+            'sometimes',
+            'email',
+            Rule::unique('users', 'email')->ignore($delivery->id),
+        ],
+
         'area_id'    => 'sometimes|exists:areas,id',
         'is_available' => 'sometimes|boolean'
+    ], [
+        'phone.unique' => 'رقم الهاتف مستخدم مسبقًا، يرجى إدخال رقم آخر.',
+        'email.unique' => 'هذا البريد الإلكتروني مستخدم مسبقًا.',
     ]);
 
-    $delivery->update($request->all());
+    $updated = $this->deliveryService->update($delivery, $request->all());
 
-    return response()->json([
-        'message' => 'Delivery employee updated successfully',
-        'data' => $delivery
-    ], 200);
+    return $this->success('Delivery employee updated successfully', $updated);
 }
-public function destroy($id)
-{
-    $delivery = \App\Models\User::where('role', 'delivery')->find($id);
 
-    if (!$delivery) {
-        return response()->json([
-            'message' => 'Delivery employee not found'
-        ], 404);
+
+    // حذف مندوب
+    public function destroy($id)
+    {
+        $delivery = User::where('role', 'delivery')->find($id);
+
+        if (!$delivery) {
+            return $this->error('Delivery employee not found', 404);
+        }
+
+        $deleted = $this->deliveryService->delete($delivery);
+
+        if (!$deleted) {
+            return $this->error('Cannot delete delivery employee because they have active orders', 400);
+        }
+
+        return $this->success('Delivery employee deleted successfully');
     }
 
-    // منع الحذف إذا عنده طلبات نشطة
-    $hasActiveOrders = \App\Models\Order::where('delivery_id', $id)
-        ->whereIn('status', ['pending', 'accepted'])
-        ->exists();
+    // جلب مندوبين حسب المنطقة
+    public function byArea($areaId)
+    {
+        $deliveries = $this->deliveryService->getByArea($areaId);
 
-    if ($hasActiveOrders) {
-        return response()->json([
-            'message' => 'Cannot delete delivery employee because they have active orders'
-        ], 400);
+        return $this->success('Delivery employees retrieved successfully', $deliveries);
     }
-
-    $delivery->delete();
-
-    return response()->json([
-        'message' => 'Delivery employee deleted successfully'
-    ], 200);
-}
-public function byArea($areaId)
-{
-    $deliveries = \App\Models\User::where('role', 'delivery')
-        ->where('area_id', $areaId)
-        ->with('area')
-        ->get();
-
-    return response()->json([
-        'message' => 'Delivery employees retrieved successfully',
-        'data' => $deliveries
-    ], 200);
-}
-
 }

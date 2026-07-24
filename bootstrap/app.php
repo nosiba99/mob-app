@@ -13,7 +13,13 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware) {
         // ← أضيفي هاد السطر
-        $middleware->alias([
+
+    // تسجيل الميدل وير كأسماء مختصرة
+    $middleware->alias([
+        'admin'    => \App\Http\Middleware\AdminMiddleware::class,
+        'delivery' => \App\Http\Middleware\DeliveryMiddleware::class,
+        'user'     => \App\Http\Middleware\UserMiddleware::class,
+    
             'role' => \Spatie\Permission\Middleware\RoleMiddleware::class,
         ]);
     })
