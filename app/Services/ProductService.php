@@ -36,32 +36,45 @@ class ProductService
     // ─────────────────────────────
     // إنشاء منتج جديد
     // ─────────────────────────────
-    public function create(array $data)
-    {
-        return DB::transaction(function () use ($data) {
+public function create(array $data)
+{
+    return DB::transaction(function () use ($data) {
 
-            $product = Product::create([
-                'name'        => $data['name'],
-                'description' => $data['description'],
-                'price'       => $data['price'],
-                'category_id' => $data['category_id'],
-            ]);
+        // إنشاء المنتج
+        $product = Product::create([
+            'name'        => $data['name'],
+            'description' => $data['description'],
+            'price'       => $data['price'],
+            'category_id' => $data['category_id'],
+            'stock'       => 0, // مؤقت
+        ]);
 
-            // إنشاء الفاريانت (color + size + stock)
-            foreach ($data['variants'] as $variant) {
-                foreach ($variant['sizes'] as $size) {
-                    ProductVariant::create([
-                        'product_id' => $product->id,
-                        'color_id'   => $variant['color_id'],
-                        'size_id'    => $size['size_id'],
-                        'stock'      => $size['stock'],
-                    ]);
-                }
+        // إنشاء الفاريانتات
+        foreach ($data['variants'] as $variant) {
+            foreach ($variant['sizes'] as $size) {
+                ProductVariant::create([
+                    'product_id' => $product->id,
+                    'color_id'   => $variant['color_id'],
+                    'size_id'    => $size['size_id'],
+                    'stock'      => $size['stock'],
+                    'price'      => $size['price'],
+                ]);
             }
+        }
 
-            return $product;
-        });
-    }
+        // حساب المخزون الفعلي للمنتج
+        $totalStock = ProductVariant::where('product_id', $product->id)->sum('stock');
+
+        // تخزينه داخل جدول المنتجات
+        $product->update([
+            'stock' => $totalStock
+        ]);
+
+        return $product;
+    });
+}
+
+
 
     // ─────────────────────────────
     // رفع الصور
@@ -185,4 +198,22 @@ class ProductService
         $product->restore();
         return $product;
     }
+   public function decreaseStock(ProductVariant $variant, int $qty)
+{
+    // نقص من الفاريانت فقط
+    $variant->decrement('stock', $qty);
+
+    // ممنوع تنقصي من المنتج الأساسي
+    // لأنه يسبب قيم سالبة ويخرب النظام
+}
+
+public function increaseStock(ProductVariant $variant, int $qty)
+{
+    // زيدي مخزون الفاريانت فقط
+    $variant->increment('stock', $qty);
+
+    // لا تزيدي مخزون المنتج الأساسي
+}
+
+
 }

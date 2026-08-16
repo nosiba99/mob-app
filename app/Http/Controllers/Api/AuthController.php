@@ -13,7 +13,8 @@ use App\Models\Otp;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
 use App\Mail\ResetPasswordOtpMail;
-
+use App\Events\UserRegistered;
+use App\Events\UserLoggedIn;
 class AuthController extends Controller
 {
     public function __construct(
@@ -24,7 +25,8 @@ class AuthController extends Controller
     // ─── تسجيل ───────────────────────────────────────
     public function register(RegisterRequest $request)
     {
-        $this->authService->register($request->validated());
+      $user = $this->authService->register($request->validated());
+        event(new UserRegistered($user));
 
         return response()->json([
             'status'  => true,
@@ -33,45 +35,71 @@ class AuthController extends Controller
     }
 
     // ─── التحقق من OTP ────────────────────────────────
-    public function verifyOtp(Request $request)
-    {
-        $request->validate([
-            'email' => 'required|email|exists:users,email',
-            'otp'   => 'required|digits:6',
-        ]);
+   public function verifyOtp(Request $request)
+{
+    $request->validate([
+        'otp' => 'required|digits:6',
+    ]);
 
-        $user = User::where('email', $request->email)->first();
+    // نبحث عن سجل الـ OTP
+    $otpRecord = Otp::where('code', $request->otp)
+                    ->where('type', 'email_verification')
+                    ->whereNull('used_at')
+                    ->latest()
+                    ->first();
 
-        if (!$this->otpService->verify($user, $request->otp, 'email_verification')) {
-            return response()->json([
-                'status'  => false,
-                'message' => 'رمز غير صالح أو منتهي.'
-            ], 422);
-        }
-
-        if (!$user->hasVerifiedEmail()) {
-            $user->markEmailAsVerified();
-        }
-
-        if ($user->is_active == 0) {
-            $user->update(['is_active' => 1]);
-        }
-
-        $token = $user->createToken('auth_token')->plainTextToken;
-
+    if (!$otpRecord) {
         return response()->json([
-            'status'  => true,
-            'message' => 'تم التحقق وتفعيل الحساب بنجاح',
-            'token'   => $token,
-            'user'    => [
-                'id'         => $user->id,
-                'first_name' => $user->first_name,
-                'last_name'  => $user->last_name,
-                'email'      => $user->email,
-                'role'       => $user->getRoleNames()->first(),
-            ],
-        ]);
+            'status'  => false,
+            'message' => 'رمز غير صالح أو منتهي.'
+        ], 422);
     }
+
+    // نجلب المستخدم من جدول otps
+    $user = User::find($otpRecord->user_id);
+
+    if (!$user) {
+        return response()->json([
+            'status'  => false,
+            'message' => 'المستخدم غير موجود.'
+        ], 422);
+    }
+
+    // التحقق عبر الـ service
+    if (!$this->otpService->verify($user, $request->otp, 'email_verification')) {
+        return response()->json([
+            'status'  => false,
+            'message' => 'رمز غير صالح أو منتهي.'
+        ], 422);
+    }
+
+    // تفعيل الإيميل
+    if (!$user->hasVerifiedEmail()) {
+        $user->markEmailAsVerified();
+    }
+
+    // تفعيل الحساب
+    if ($user->is_active == 0) {
+        $user->update(['is_active' => 1]);
+    }
+
+    // إنشاء التوكن
+    $token = $user->createToken('auth_token')->plainTextToken;
+
+    return response()->json([
+        'status'  => true,
+        'message' => 'تم التحقق وتفعيل الحساب بنجاح',
+        'token'   => $token,
+        'user'    => [
+            'id'         => $user->id,
+            'first_name' => $user->first_name,
+            'last_name'  => $user->last_name,
+            'email'      => $user->email,
+            'role'       => $user->getRoleNames()->first(),
+        ],
+    ]);
+}
+
 
     // ─── تسجيل الدخول ────────────────────────────────
     public function login(LoginRequest $request)
@@ -101,6 +129,7 @@ class AuthController extends Controller
                 'message' => 'حسابك غير مفعّل. أُرسل رمز جديد لبريدك.'
             ], 403);
         }
+         event(new UserLoggedIn($user));
 
         return response()->json([
             'status'  => true,

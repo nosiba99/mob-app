@@ -4,11 +4,11 @@ namespace App\Services;
 
 use App\Models\User;
 use App\Models\Order;
+use Exception;
 use Illuminate\Support\Facades\Hash;
 
 class DeliveryService
 {
-    // تسجيل دخول المندوب
     public function login(array $data): ?array
     {
         $delivery = User::where('role', 'delivery')
@@ -16,11 +16,11 @@ class DeliveryService
                         ->first();
 
         if (!$delivery) {
-            throw new \Exception('البريد الإلكتروني غير صحيح.');
+            throw new Exception('البريد الإلكتروني غير صحيح.');
         }
 
         if (!Hash::check($data['password'], $delivery->password)) {
-            throw new \Exception('كلمة المرور غير صحيحة.');
+            throw new Exception('كلمة المرور غير صحيحة.');
         }
 
         $token = $delivery->createToken('delivery_token')->plainTextToken;
@@ -31,18 +31,34 @@ class DeliveryService
         ];
     }
 
-    // تحديث حالة المندوب (online/offline)
+    public function checkCoverage(User $delivery, int $areaId): bool
+    {
+        if (!$delivery->warehouse_id) {
+            throw new Exception('هذا المندوب غير مرتبط بأي مستودع.');
+        }
+
+        $covers = $delivery->warehouse
+            ->areas()
+            ->where('area_id', $areaId)
+            ->exists();
+
+        if (!$covers) {
+            throw new Exception('هذا المندوب لا يغطي هذه المنطقة.');
+        }
+
+        return true;
+    }
+
     public function updateStatus(User $delivery, string $status): User
     {
         $delivery->update(['status' => $status]);
         return $delivery;
     }
 
-    // تحديث موقع المندوب
     public function updateLocation(User $delivery, array $data): User
     {
         if (!isset($data['lat']) || !isset($data['lng'])) {
-            throw new \Exception('إحداثيات الموقع غير مكتملة.');
+            throw new Exception('إحداثيات الموقع غير مكتملة.');
         }
 
         $delivery->update([
@@ -53,54 +69,84 @@ class DeliveryService
         return $delivery;
     }
 
-    // قبول الطلب
     public function acceptOrder(User $delivery, Order $order): Order
     {
-        if ($order->status !== 'pending') {
-            throw new \Exception('لا يمكن قبول هذا الطلب.');
+        if ($order->status !== Order::STATUS_ASSIGNED) {
+            throw new Exception('لا يمكن قبول هذا الطلب.');
         }
 
         if ($delivery->active_orders >= 1) {
-            throw new \Exception('لا يمكنك قبول أكثر من طلب في نفس الوقت.');
+            throw new Exception('لا يمكنك قبول أكثر من طلب في نفس الوقت.');
+        }
+
+        $order->update(['status' => Order::STATUS_ACCEPTED]);
+
+        $delivery->increment('active_orders');
+        $delivery->is_available = false;
+        $delivery->save();
+
+        return $order->fresh(['user', 'items.product']);
+    }
+
+    public function rejectOrder(User $delivery, Order $order): Order
+    {
+        if ($order->delivery_id !== $delivery->id) {
+            throw new Exception('هذا الطلب ليس مخصصًا لك.');
+        }
+
+        if ($order->status !== Order::STATUS_ASSIGNED) {
+            throw new Exception('لا يمكن رفض هذا الطلب بعد قبوله.');
         }
 
         $order->update([
-            'delivery_id' => $delivery->id,
-            'status'      => 'accepted',
+            'status' => Order::STATUS_REJECTED,
+            'delivery_id' => null
         ]);
 
-        $delivery->increment('active_orders');
-
         return $order->fresh(['user', 'items.product']);
     }
 
-    // استلام الطلب من المتجر
-    public function pickupOrder(User $delivery, Order $order): Order
+    public function markOnTheWay(User $delivery, Order $order): Order
     {
         if ($order->delivery_id !== $delivery->id) {
-            throw new \Exception('هذا الطلب ليس مخصصًا لك.');
+            throw new Exception('هذا الطلب ليس مخصصًا لك.');
         }
 
-        $order->update(['status' => 'picked_up']);
+        if ($order->status !== Order::STATUS_ACCEPTED) {
+            throw new Exception('لا يمكن تغيير حالة هذا الطلب.');
+        }
+
+        $order->update(['status' => Order::STATUS_ON_THE_WAY]);
 
         return $order->fresh(['user', 'items.product']);
     }
 
-    // إنهاء الطلب (تم التوصيل)
-    public function completeOrder(User $delivery, Order $order): Order
+    public function markDelivered(User $delivery, Order $order): Order
     {
         if ($order->delivery_id !== $delivery->id) {
-            throw new \Exception('هذا الطلب ليس مخصصًا لك.');
+            throw new Exception('هذا الطلب ليس مخصصًا لك.');
         }
 
-        $order->update(['status' => 'delivered']);
+        if ($order->status !== Order::STATUS_ON_THE_WAY) {
+            throw new Exception('لا يمكن إنهاء هذا الطلب.');
+        }
 
-        $delivery->decrement('active_orders');
+        $order->update([
+            'status' => Order::STATUS_DELIVERED,
+            'delivered_at' => now()
+        ]);
+
+        $delivery->active_orders -= 1;
+
+        if ($delivery->active_orders <= 0) {
+            $delivery->is_available = true;
+        }
+
+        $delivery->save();
 
         return $order->fresh(['user', 'items.product']);
     }
 
-    // عرض طلبات المندوب
     public function myOrders(User $delivery)
     {
         return Order::where('delivery_id', $delivery->id)
@@ -109,12 +155,40 @@ class DeliveryService
             ->get();
     }
 
-    // تبديل حالة التوفر
     public function toggleAvailability(User $delivery): User
     {
         $delivery->is_available = !$delivery->is_available;
         $delivery->save();
 
         return $delivery;
+    }
+
+    public function assignDeliveryToOrder(Order $order)
+    {
+        $delivery = User::where('role', 'delivery')
+            ->where('warehouse_id', $order->warehouse_id)
+            ->where('is_available', true)
+            ->where('is_banned', false)
+            ->orderBy('active_orders', 'asc')
+            ->first();
+
+        if (!$delivery) {
+            throw new Exception('لا يوجد مندوب متاح حالياً لهذا المستودع.');
+        }
+
+        $this->checkCoverage($delivery, $order->area_id);
+
+        $order->update([
+            'delivery_id' => $delivery->id,
+            'status'      => Order::STATUS_ASSIGNED,
+        ]);
+
+        event(new DeliveryAssigned($order));
+
+        $delivery->is_available = false;
+        $delivery->active_orders += 1;
+        $delivery->save();
+
+        return $order->fresh(['delivery', 'items.product']);
     }
 }

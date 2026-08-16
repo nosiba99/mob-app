@@ -7,6 +7,7 @@ use App\Services\AdminDeliveryService;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use App\Http\Resources\DeliveryShortResource;
 
 class DeliveryController extends Controller
 {
@@ -53,11 +54,14 @@ class DeliveryController extends Controller
     }
 
     // عرض كل المندوبين
-    public function index()
-    {
-        $deliveries = $this->deliveryService->getAll();
-        return $this->success('Delivery employees retrieved successfully', $deliveries);
-    }
+  public function index()
+{
+    $deliveries = $this->deliveryService->getAll();
+    return $this->success(
+        'Delivery employees retrieved successfully',
+        DeliveryShortResource::collection($deliveries)
+    );
+}
 
     // عرض مندوب واحد
     public function show($id)

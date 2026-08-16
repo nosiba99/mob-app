@@ -17,18 +17,16 @@ class RolesAndAdminSeeder extends Seeder
         Role::firstOrCreate(['name' => 'driver']);
 
         // إنشاء الأدمن
-        $admin = User::firstOrCreate(
-            ['email' => 'admin@store.com'],
-            [
-                'first_name' => 'Admin',
-                
-                'last_name'  => 'User',
+     $admin = User::firstOrCreate(
+    ['email' => 'admin@store.com'],
+    [
+        'first_name' => 'Admin',
+        'last_name'  => 'User',
+        'password'   => Hash::make('Admin@1234'),
+        'email_verified_at' => now(),
+        'role' => 'admin',   // ← هذا السطر ضروري جداً
+    ]
+);
 
-                'password'          => Hash::make('Admin@1234'),
-                'email_verified_at' => now(), // الأدمن مفعّل مباشرة
-            ]
-        );
-
-        $admin->assignRole('admin');
-    }
-}
+$admin->assignRole('admin');   // Spatie role
+    }}

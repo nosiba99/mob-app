@@ -144,4 +144,18 @@ class ProductController extends Controller
 
         return $this->success('تم استعادة المنتج بنجاح', $product);
     }
+    public function addStock(Request $request, $variantId)
+{
+    $request->validate([
+        'qty' => 'required|integer|min:1'
+    ]);
+
+    $variant = \App\Models\ProductVariant::findOrFail($variantId);
+
+    // زيادة المخزون للفاريانت + المنتج الأساسي
+    $this->productService->increaseStock($variant, $request->qty);
+
+    return $this->success('تمت إضافة المخزون بنجاح');
+}
+
 }

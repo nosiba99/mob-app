@@ -25,6 +25,8 @@ class StoreProductRequest extends FormRequest
             'variants.*.sizes' => ['required', 'array'],
             'variants.*.sizes.*.size_id' => ['required', 'exists:sizes,id'],
             'variants.*.sizes.*.stock' => ['required', 'integer', 'min:0'],
+            'variants.*.sizes.*.price' => ['required', 'numeric', 'min:0'],
+
         ];
     }
 

@@ -3,6 +3,10 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use App\Models\Order;
+use App\Models\Product;
+use App\Models\ProductVariant;
+use App\Models\Size;
 
 class OrderItem extends Model
 {
@@ -10,8 +14,10 @@ class OrderItem extends Model
         'order_id',
         'product_id',
         'variant_id',
+        'size_id',
         'quantity',
-        'price'
+        'price',
+        'total',   // الآن أصبح متوافق مع شغلك
     ];
 
     public function order()
@@ -26,6 +32,11 @@ class OrderItem extends Model
 
     public function variant()
     {
-        return $this->belongsTo(ProductVariant::class, 'variant_id');
+        return $this->belongsTo(ProductVariant::class);
+    }
+
+    public function size()
+    {
+        return $this->belongsTo(Size::class);
     }
 }

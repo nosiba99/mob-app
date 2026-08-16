@@ -9,20 +9,21 @@ class OrderItemResource extends JsonResource
     public function toArray($request)
     {
         return [
-            'id'       => $this->id,
-            'quantity' => $this->quantity,
-            'price'    => $this->price,
+            'id'           => $this->id,
+            'product_id'   => $this->product_id,
+            'product_name' => $this->product?->name,
 
-            'product' => [
-                'id'    => $this->product->id,
-                'name'  => $this->product->name,
-                'image' => $this->product->mainImage?->image_url,
-            ],
+            'variant_id'   => $this->variant_id,
+            'color'        => $this->variant?->color?->name,
+            'size'         => $this->size?->name,
 
-            'variant' => $this->variant ? [
-                'color' => $this->variant->color?->name,
-                'size'  => $this->variant->size?->name,
-            ] : null,
+            'quantity'     => $this->quantity,
+            'price'        => $this->price,
+            'total'        => $this->total,
+
+            // الصور
+            'main_image'   => $this->product?->mainImage?->path ?? null,
+            'images'       => $this->product?->images->pluck('path'),
         ];
     }
 }

@@ -6,16 +6,14 @@ use Illuminate\Database\Eloquent\Model;
 
 class Review extends Model
 {
-    protected $fillable = [
-        'user_id',
-        'product_id',
-        'rating',
-        'comment',
-    ];
+    protected $fillable = ['user_id', 'product_id', 'rating', 'comment'];
 
-    protected $casts = [
-        'rating' => 'integer',
-    ];
+    public function product()
+    {
+        return $this->belongsTo(Product::class);
+    }
+
+
 
     // علاقة المراجعة مع المستخدم
     public function user()
@@ -24,9 +22,5 @@ class Review extends Model
             ->select('id', 'name', 'email');
     }
 
-    // علاقة المراجعة مع المنتج
-    public function product()
-    {
-        return $this->belongsTo(Product::class);
-    }
+   
 }

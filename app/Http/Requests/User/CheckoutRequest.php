@@ -11,13 +11,14 @@ class CheckoutRequest extends FormRequest
         return true;
     }
 
-    public function rules(): array
-    {
-        return [
-            'address_id'     => ['required', 'exists:user_addresses,id'],
-            'payment_method' => ['required', 'in:cash,card'],
-        ];
-    }
+   public function rules()
+{
+    return [
+        'shipping_address' => 'required|string|max:255',
+        'notes' => 'nullable|string'
+    ];
+}
+
 
     public function messages(): array
     {

@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use App\Models\Product;
 use App\Models\Color;
 use App\Models\Size;
+use App\Models\Review; // ⭐ إضافة الموديل
 use App\Http\Resources\User\ProductResource;
 use App\Http\Resources\User\ProductDetailsResource;
 use App\Http\Resources\User\ProductCollection;
@@ -34,86 +35,122 @@ class ProductController extends Controller
     // ============================
     // 1) عرض كل المنتجات + الفلترة
     // ============================
-    public function index(Request $request)
-    {
-        $query = Product::with([
-            'images',
-            'variants.color',
-            'variants.size',
-            'category',
-            'mainImage'
-        ])->whereNull('deleted_at');
+public function index(Request $request)
+{
+    $query = Product::with([
+        'images',
+        'variants.color',
+        'variants.size',
+        'category',
+        'mainImage'
+    ])->whereNull('deleted_at');
 
-        // فلترة حسب القسم
-        if ($request->filled('category_id')) {
-            $query->where('category_id', $request->category_id);
-        }
+    // فلترة حسب القسم
+    if ($request->filled('category_id')) {
+        $query->where('category_id', $request->category_id);
+    }
 
-        // فلترة حسب اللون
-        if ($request->filled('color')) {
-            $color = Color::where('name', $request->color)->first();
-            if ($color) {
-                $query->whereHas('variants', fn($q) => $q->where('color_id', $color->id));
-            }
+    // فلترة حسب اللون
+    if ($request->filled('color')) {
+        $color = Color::whereRaw('LOWER(name) = ?', strtolower($request->color))->first();
+        if ($color) {
+            $query->whereHas('variants', fn($q) => $q->where('color_id', $color->id));
         }
+    }
 
-        // فلترة حسب المقاس
-        if ($request->filled('size')) {
-            $size = Size::where('name', $request->size)->first();
-            if ($size) {
-                $query->whereHas('variants', fn($q) => $q->where('size_id', $size->id));
-            }
+    // فلترة حسب المقاس
+    if ($request->filled('size')) {
+        $size = Size::whereRaw('LOWER(name) = ?', strtolower($request->size))->first();
+        if ($size) {
+            $query->whereHas('variants', fn($q) => $q->where('size_id', $size->id));
         }
+    }
 
-        // فلترة حسب السعر
-        if ($request->filled('min_price')) {
-            $query->where('price', '>=', $request->min_price);
-        }
-        if ($request->filled('max_price')) {
-            $query->where('price', '<=', $request->max_price);
-        }
+    // فلترة حسب السعر (يدعم simple + variant)
+    // فلترة حسب السعر الثابت (price=500)
+if ($request->filled('price')) {
+    $query->where(function ($q) use ($request) {
+        $q->where('price', $request->price) // للمنتجات simple
+          ->orWhereHas('variants', fn($v) =>
+              $v->where('price', $request->price) // للمنتجات variant
+          );
+    });
+}
 
-        // فلترة حسب توفر المنتج
-        if ($request->filled('in_stock')) {
-            if ($request->in_stock == 1) {
-                $query->whereHas('variants', fn($q) => $q->where('stock', '>', 0));
-            } elseif ($request->in_stock == 0) {
-                $query->whereHas('variants', fn($q) => $q->where('stock', '=', 0));
-            }
-        }
+    if ($request->filled('min_price')) {
+        $query->where(function ($q) use ($request) {
+            $q->where('price', '>=', $request->min_price) // للمنتجات simple
+              ->orWhereHas('variants', fn($v) =>
+                  $v->where('price', '>=', $request->min_price) // للمنتجات variant
+              );
+        });
+    }
 
-        // البحث
-        if ($request->filled('search')) {
-            $query->where(function ($q) use ($request) {
-                $q->where('name', 'LIKE', '%' . $request->search . '%')
-                  ->orWhere('description', 'LIKE', '%' . $request->search . '%');
+    if ($request->filled('max_price')) {
+        $query->where(function ($q) use ($request) {
+            $q->where('price', '<=', $request->max_price)
+              ->orWhereHas('variants', fn($v) =>
+                  $v->where('price', '<=', $request->max_price)
+              );
+        });
+    }
+
+    // فلترة حسب توفر المنتج
+    if ($request->filled('in_stock')) {
+        if ($request->in_stock == 1) {
+            $query->where(function ($q) {
+                $q->where('stock', '>', 0) // simple
+                  ->orWhereHas('variants', fn($v) => $v->where('stock', '>', 0)); // variant
+            });
+        } elseif ($request->in_stock == 0) {
+            $query->where(function ($q) {
+                $q->where('stock', '=', 0)
+                  ->orWhereHas('variants', fn($v) => $v->where('stock', '=', 0));
             });
         }
+    }
 
-        // الترتيب
+    // البحث
+    if ($request->filled('search')) {
+        $query->where(function ($q) use ($request) {
+            $q->where('name', 'LIKE', '%' . $request->search . '%')
+              ->orWhere('description', 'LIKE', '%' . $request->search . '%');
+        });
+    }
+
+    // ترتيب حسب السعر (يدعم simple + variant)
+    if ($request->sort === 'price_asc' || $request->sort === 'price_desc') {
+
+        // نجلب أقل سعر variant لكل منتج
+        $query->withMin('variants', 'price');
+
+        if ($request->sort === 'price_asc') {
+            $query->orderByRaw('COALESCE(products.price, variants_min_price) ASC');
+        } else {
+            $query->orderByRaw('COALESCE(products.price, variants_min_price) DESC');
+        }
+
+    } else {
+        // ترتيب عادي
         switch ($request->sort) {
-            case 'price_asc':
-                $query->orderBy('price', 'asc');
-                break;
-            case 'price_desc':
-                $query->orderBy('price', 'desc');
-                break;
             case 'newest':
                 $query->orderBy('created_at', 'desc');
                 break;
             default:
                 $query->orderBy('id', 'desc');
         }
-
-        // Pagination
-        $products = $query->paginate(12);
-
-        // 🔥 هنا نستخدم ProductCollection
-        return new ProductCollection($products);
     }
 
+    // Pagination
+    $products = $query->paginate(30);
+
+    return new ProductCollection($products);
+}
+
+
+
     // ============================
-    // 2) عرض تفاصيل منتج
+    // 2) عرض تفاصيل منتج + التقييمات
     // ============================
     public function show($id)
     {
@@ -122,7 +159,8 @@ class ProductController extends Controller
             'variants.color',
             'variants.size',
             'category',
-            'mainImage'
+            'mainImage',
+            'reviews.user' // ⭐ جلب التقييمات مع المستخدم
         ])->find($id);
 
         if (!$product) {
@@ -133,7 +171,24 @@ class ProductController extends Controller
             return $this->error('المنتج محذوف ولا يمكن عرضه', 404);
         }
 
-        // 🔥 هنا نستخدم ProductDetailsResource
-        return $this->success('تم جلب تفاصيل المنتج بنجاح', new ProductDetailsResource($product));
+        // ⭐ متوسط التقييم وعدد التقييمات
+        $averageRating = round($product->averageRating(), 2);
+        $reviewsCount  = $product->reviewsCount();
+
+        // ⭐ هل المستخدم الحالي قيّم المنتج؟
+        $userHasReviewed = false;
+        if (auth()->check()) {
+            $userHasReviewed = Review::where('user_id', auth()->id())
+                ->where('product_id', $product->id)
+                ->exists();
+        }
+
+        return $this->success('تم جلب تفاصيل المنتج بنجاح', [
+            'product'          => new ProductDetailsResource($product),
+            'average_rating'   => $averageRating,
+            'reviews_count'    => $reviewsCount,
+            'user_has_reviewed'=> $userHasReviewed,
+            'reviews'          => $product->reviews()->latest()->get()
+        ]);
     }
 }
