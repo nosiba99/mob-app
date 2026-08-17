@@ -279,22 +279,25 @@ Route::middleware(['auth:sanctum', 'delivery'])->group(function () {
     Route::post('/delivery/toggle-availability', [DeliveryStatusController::class, 'toggleAvailability']);
 
     // ⭐ قبول الطلب
-    Route::post('/delivery/orders/{id}/accept', [DeliveryStatusController::class, 'acceptOrder']);
+    Route::post('/delivery/orders/{orderId}/accept', [DeliveryStatusController::class, 'acceptOrder']);
+
 
     // ⭐ رفض الطلب
-    Route::post('/delivery/orders/{id}/reject', [DeliveryStatusController::class, 'rejectOrder']);
+    Route::post('/delivery/orders/{orderId}/reject', [DeliveryStatusController::class, 'rejectOrder']);
 
     // ⭐ المندوب في الطريق
-    Route::post('/delivery/orders/{id}/on-the-way', [DeliveryStatusController::class, 'markOnTheWay']);
+    Route::post('/delivery/orders/{orderId}/on-the-way', [DeliveryStatusController::class, 'markOnTheWay']);
 
     // ⭐ التسليم بالباركود
-    Route::post('/delivery/orders/{id}/deliver-with-barcode', [DeliveryStatusController::class, 'markDeliveredWithBarcode']);
+    Route::post('/delivery/orders/{orderId}/deliver-with-barcode', [DeliveryStatusController::class, 'markDeliveredWithBarcode']);
 
     // ⭐ عرض تفاصيل طلب واحد
-    Route::get('/delivery/orders/{id}', [DeliveryStatusController::class, 'show']);
+    Route::get('/delivery/orders/{orderId}', [DeliveryStatusController::class, 'show']);
 
     // ⭐ إشعارات المندوب
     Route::get('/notifications/delivery', [NotificationController::class, 'deliveryNotifications']);
+    
+
 });
 
 
@@ -336,6 +339,9 @@ Route::middleware(['auth:sanctum', 'user'])->prefix('user')->group(function () {
     Route::delete('/orders/{id}', [OrderController::class, 'destroy']);
     Route::post('/orders/{id}/refund', [OrderController::class, 'refund']);
 
+
+  
+
     // ⭐ Wishlist
     Route::get('/wishlist', [WishlistController::class, 'index']);
     Route::post('/wishlist/toggle', [WishlistController::class, 'toggle']);
@@ -358,10 +364,18 @@ Route::middleware(['auth:sanctum', 'user'])->prefix('user')->group(function () {
 |--------------------------------------------------------------------------
 */
 
-Route::prefix('chat')->group(function () {
-    Route::post('/order/{id}/send', [OrderChatController::class, 'send']);
-    Route::get('/order/{id}/messages', [OrderChatController::class, 'messages']);
+
+Route::middleware(['auth:sanctum'])->group(function () {
+
+    // إرسال رسالة
+    Route::post('/orders/{orderId}/messages/send', [OrderChatController::class, 'send']);
+
+    // جلب الرسائل
+    Route::get('/orders/{orderId}/messages', [OrderChatController::class, 'messages']);
+
 });
+
+
 
 //المحفظة
 Route::middleware('auth:sanctum')->group(function () {
@@ -370,3 +384,20 @@ Route::middleware('auth:sanctum')->group(function () {
 });
 
 
+// جلب كل الإشعارات
+Route::get('/notifications', [NotificationController::class, 'index']);
+
+// جلب الإشعارات غير المقروءة فقط
+Route::get('/notifications/unread', [NotificationController::class, 'unread']);
+
+// تعليم إشعار واحد كمقروء
+Route::post('/notifications/{id}/read', [NotificationController::class, 'markAsRead']);
+
+// تعليم كل الإشعارات كمقروءة
+Route::post('/notifications/read-all', [NotificationController::class, 'markAllAsRead']);
+
+// حذف إشعار واحد
+Route::delete('/notifications/{id}', [NotificationController::class, 'destroy']);
+
+// حذف كل الإشعارات
+Route::delete('/notifications', [NotificationController::class, 'clearAll']);

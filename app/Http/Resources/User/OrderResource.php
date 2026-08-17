@@ -16,6 +16,7 @@ class OrderResource extends JsonResource
             'address'       => $this->address,
             'notes'         => $this->notes,
             'created_at'    => $this->created_at->format('Y-m-d'),
+            'barcode' => $this->barcode,
 
             // المنطقة
             'area' => [

@@ -1,6 +1,9 @@
 <?php
 
 namespace App\Listeners;
+use App\Events\UserRegistered;
+use App\Models\User;
+use App\Notifications\AdminUserRegisteredNotification;
 
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Queue\InteractsWithQueue;

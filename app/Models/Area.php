@@ -31,10 +31,11 @@ class Area extends Model
     {
         return $this->hasMany(Order::class);
     }
-  public function warehouses()
+  public function warehouse()
 {
-    return $this->belongsToMany(Warehouse::class, 'warehouse_area');
+    return $this->belongsTo(Warehouse::class);
 }
+
 
 
 

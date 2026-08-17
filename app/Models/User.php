@@ -73,9 +73,15 @@ class User extends Authenticatable
      * منطقة المستخدم
      */
     public function area()
-    {
-        return $this->belongsTo(Area::class, 'area_id');
-    }
+{
+    return $this->belongsTo(Area::class, 'area_id');
+}
+public function getWarehouseIdAttribute()
+{
+    return $this->area ? $this->area->warehouse_id : null;
+}
+
+
 
     /**
      * المستودع التابع له المستخدم (إذا كان مندوبًا)

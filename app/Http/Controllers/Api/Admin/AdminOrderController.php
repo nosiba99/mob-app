@@ -1,6 +1,7 @@
 <?php
+namespace App\Http\Controllers\Api\Admin;
 
-namespace App\Http\Controllers\Admin;
+
 
 use App\Http\Controllers\Controller;
 use App\Models\Warehouse;
@@ -10,7 +11,8 @@ use App\Models\Order;
 use Illuminate\Http\Request;
 use App\Models\ProductWarehouse;
 
-class AdminWarehouseController extends Controller
+
+class AdminOrderController extends Controller
 {
     private function success($message, $data = null)
     {

@@ -28,6 +28,8 @@ class Order extends Model
         'notes',
         'lat',
         'lng',
+        'address',
+        'barcode', 
     ];
 
     const STATUS_PENDING         = 'pending';
@@ -38,6 +40,11 @@ class Order extends Model
     const STATUS_WAITING_DELIVERY = 'waiting_delivery';
     const STATUS_WAITING_STOCK   = 'waiting_stock';
     const STATUS_RETURNED        = 'returned';
+    const STATUS_ACCEPTED         = 'accepted';
+    const STATUS_REJECTED         = 'rejected';
+    
+
+
 
     public function items()
     {
@@ -59,8 +66,14 @@ class Order extends Model
         return $this->belongsTo(Area::class);
     }
 
+
     public function warehouse()
     {
         return $this->belongsTo(Warehouse::class);
     }
+    public function messages()
+{
+    return $this->hasMany(OrderMessage::class);
+}
+
 }

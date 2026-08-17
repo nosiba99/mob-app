@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Models\Order;
 use Exception;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 
 class DeliveryService
 {
@@ -69,24 +70,35 @@ class DeliveryService
         return $delivery;
     }
 
-    public function acceptOrder(User $delivery, Order $order): Order
-    {
-        if ($order->status !== Order::STATUS_ASSIGNED) {
-            throw new Exception('لا يمكن قبول هذا الطلب.');
-        }
-
-        if ($delivery->active_orders >= 1) {
-            throw new Exception('لا يمكنك قبول أكثر من طلب في نفس الوقت.');
-        }
-
-        $order->update(['status' => Order::STATUS_ACCEPTED]);
-
-        $delivery->increment('active_orders');
-        $delivery->is_available = false;
-        $delivery->save();
-
-        return $order->fresh(['user', 'items.product']);
+   public function acceptOrder(User $delivery, Order $order): Order
+{
+    if ($order->status !== Order::STATUS_ASSIGNED) {
+        throw new Exception('لا يمكن قبول هذا الطلب.');
     }
+
+    // حذف شرط الحد الأقصى لو بدك
+    // أو خليه حسب رغبتك
+    // if ($delivery->active_orders >= 5) {
+    //     throw new Exception('وصلت للحد الأقصى للطلبات.');
+    // }
+
+    // ⭐ توليد الباركود هنا
+    if (!$order->barcode) {
+        $order->barcode = strtoupper(Str::random(10));
+    }
+
+    // تحديث حالة الطلب
+    $order->status = Order::STATUS_ACCEPTED;
+    $order->save();
+
+    // تحديث حالة المندوب
+    $delivery->increment('active_orders');
+    $delivery->is_available = false;
+    $delivery->save();
+
+    return $order->fresh(['user', 'items.product']);
+}
+
 
     public function rejectOrder(User $delivery, Order $order): Order
     {
