@@ -4,6 +4,8 @@ namespace App\Services;
 
 use App\Models\User;
 use App\Models\Order;
+use App\Models\StoreAccount;
+use App\Events\DeliveryAssigned;
 use Exception;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -148,6 +150,13 @@ class DeliveryService
             'delivered_at' => now()
         ]);
 
+        // ⭐ تحويل قيمة فاتورة الطلب لحساب المتجر — فقط بعد تأكيد التسليم بالباركود
+        StoreAccount::credit(
+            $order->total_price,
+            $order->id,
+            'تحصيل فاتورة الطلب رقم ' . $order->id
+        );
+
         $delivery->active_orders -= 1;
 
         if ($delivery->active_orders <= 0) {
@@ -175,27 +184,27 @@ class DeliveryService
         return $delivery;
     }
 
-    public function assignDeliveryToOrder(Order $order)
+    public function assignDeliveryToOrder(Order $order, ?int $excludeDeliveryId = null)
     {
         $delivery = User::where('role', 'delivery')
             ->where('warehouse_id', $order->warehouse_id)
+            ->where('area_id', $order->area_id)
             ->where('is_available', true)
             ->where('is_banned', false)
+            ->when($excludeDeliveryId, fn ($q) => $q->where('id', '!=', $excludeDeliveryId))
             ->orderBy('active_orders', 'asc')
             ->first();
 
         if (!$delivery) {
-            throw new Exception('لا يوجد مندوب متاح حالياً لهذا المستودع.');
+            throw new Exception('لا يوجد مندوب متاح حالياً لهذه المنطقة والمستودع.');
         }
-
-        $this->checkCoverage($delivery, $order->area_id);
 
         $order->update([
             'delivery_id' => $delivery->id,
             'status'      => Order::STATUS_ASSIGNED,
         ]);
 
-        event(new DeliveryAssigned($order));
+        event(new DeliveryAssigned($order, $delivery));
 
         $delivery->is_available = false;
         $delivery->active_orders += 1;

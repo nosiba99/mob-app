@@ -3,11 +3,17 @@
 namespace App\Notifications;
 
 use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
+
 class AdminOrderCreatedNotification extends Notification
 {
+    public $order;
+
+    public function __construct($order)
+    {
+        $this->order = $order;
+    }
+
     public function via($notifiable)
     {
         return ['database'];
@@ -17,7 +23,7 @@ class AdminOrderCreatedNotification extends Notification
     {
         return [
             'title' => 'طلب جديد',
-            'body'  => 'قام المستخدم ' . $this->order->user->name . ' بإنشاء طلب رقم ' . $this->order->id,
+            'body'  => 'تم إنشاء طلب جديد برقم #' . $this->order->id,
             'type'  => 'order_created'
         ];
     }

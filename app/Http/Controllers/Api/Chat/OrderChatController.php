@@ -44,23 +44,27 @@ public function send(Request $request, $orderId)
         return $this->error('الطلب غير موجود', 404);
     }
 
-    // منع المراسلة قبل قبول الطلب
-    if ($order->status !== Order::STATUS_ACCEPTED) {
+    // المحادثة مسموحة طول ما الطلب "مقبول" أو "بالطريق"
+    $activeStatuses = [
+        Order::STATUS_ACCEPTED,
+        Order::STATUS_ON_THE_WAY,
+    ];
+
+    if (!in_array($order->status, $activeStatuses)) {
+
+        if ($order->status === Order::STATUS_DELIVERED) {
+            return $this->error('تم تسليم الطلب، انتهت صلاحية المحادثة', 403);
+        }
+
+        if (in_array($order->status, [
+            Order::STATUS_CANCELED,
+            Order::STATUS_REJECTED,
+            Order::STATUS_RETURNED
+        ])) {
+            return $this->error('لا يمكن المراسلة على هذا الطلب', 403);
+        }
+
         return $this->error('لا يمكن بدء المحادثة قبل قبول الطلب من المندوب', 403);
-    }
-
-    // منع المراسلة بعد تسليم الطلب
-    if ($order->status === Order::STATUS_DELIVERED) {
-        return $this->error('تم تسليم الطلب، انتهت صلاحية المحادثة', 403);
-    }
-
-    // منع المراسلة إذا الطلب ملغي أو مرفوض
-    if (in_array($order->status, [
-        Order::STATUS_CANCELED,
-        Order::STATUS_REJECTED,
-        Order::STATUS_RETURNED
-    ])) {
-        return $this->error('لا يمكن المراسلة على هذا الطلب', 403);
     }
 
     // تحديد المستقبل

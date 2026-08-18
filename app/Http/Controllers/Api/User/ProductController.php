@@ -3,17 +3,19 @@
 namespace App\Http\Controllers\Api\User;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
+use App\Http\Requests\Admin\StoreProductRequest;
+use App\Http\Requests\Admin\UpdateProductRequest;
+use App\Services\ProductService;
 use App\Models\Product;
-use App\Models\Color;
-use App\Models\Size;
-use App\Models\Review; // ⭐ إضافة الموديل
-use App\Http\Resources\User\ProductResource;
-use App\Http\Resources\User\ProductDetailsResource;
-use App\Http\Resources\User\ProductCollection;
+use Illuminate\Http\Request;
 
 class ProductController extends Controller
 {
+    public function __construct(private ProductService $productService) {}
+
+    // ============================
+    // Helper للريسبونس الموحد
+    // ============================
     private function success($message, $data = null)
     {
         return response()->json([
@@ -33,135 +35,20 @@ class ProductController extends Controller
     }
 
     // ============================
-    // 1) عرض كل المنتجات + الفلترة
+    // 1) عرض كل المنتجات
     // ============================
-public function index(Request $request)
-{
-    $query = Product::with([
-        'images',
-        'variants.color',
-        'variants.size',
-        'category',
-        'mainImage'
-    ])->whereNull('deleted_at');
-
-    // فلترة حسب القسم
-    if ($request->filled('category_id')) {
-        $query->where('category_id', $request->category_id);
+    public function index()
+    {
+        $products = $this->productService->getAll();
+        return $this->success('تم جلب المنتجات بنجاح', $products);
     }
-
-    // فلترة حسب اللون
-    if ($request->filled('color')) {
-        $color = Color::whereRaw('LOWER(name) = ?', strtolower($request->color))->first();
-        if ($color) {
-            $query->whereHas('variants', fn($q) => $q->where('color_id', $color->id));
-        }
-    }
-
-    // فلترة حسب المقاس
-    if ($request->filled('size')) {
-        $size = Size::whereRaw('LOWER(name) = ?', strtolower($request->size))->first();
-        if ($size) {
-            $query->whereHas('variants', fn($q) => $q->where('size_id', $size->id));
-        }
-    }
-
-    // فلترة حسب السعر (يدعم simple + variant)
-    // فلترة حسب السعر الثابت (price=500)
-if ($request->filled('price')) {
-    $query->where(function ($q) use ($request) {
-        $q->where('price', $request->price) // للمنتجات simple
-          ->orWhereHas('variants', fn($v) =>
-              $v->where('price', $request->price) // للمنتجات variant
-          );
-    });
-}
-
-    if ($request->filled('min_price')) {
-        $query->where(function ($q) use ($request) {
-            $q->where('price', '>=', $request->min_price) // للمنتجات simple
-              ->orWhereHas('variants', fn($v) =>
-                  $v->where('price', '>=', $request->min_price) // للمنتجات variant
-              );
-        });
-    }
-
-    if ($request->filled('max_price')) {
-        $query->where(function ($q) use ($request) {
-            $q->where('price', '<=', $request->max_price)
-              ->orWhereHas('variants', fn($v) =>
-                  $v->where('price', '<=', $request->max_price)
-              );
-        });
-    }
-
-    // فلترة حسب توفر المنتج
-    if ($request->filled('in_stock')) {
-        if ($request->in_stock == 1) {
-            $query->where(function ($q) {
-                $q->where('stock', '>', 0) // simple
-                  ->orWhereHas('variants', fn($v) => $v->where('stock', '>', 0)); // variant
-            });
-        } elseif ($request->in_stock == 0) {
-            $query->where(function ($q) {
-                $q->where('stock', '=', 0)
-                  ->orWhereHas('variants', fn($v) => $v->where('stock', '=', 0));
-            });
-        }
-    }
-
-    // البحث
-    if ($request->filled('search')) {
-        $query->where(function ($q) use ($request) {
-            $q->where('name', 'LIKE', '%' . $request->search . '%')
-              ->orWhere('description', 'LIKE', '%' . $request->search . '%');
-        });
-    }
-
-    // ترتيب حسب السعر (يدعم simple + variant)
-    if ($request->sort === 'price_asc' || $request->sort === 'price_desc') {
-
-        // نجلب أقل سعر variant لكل منتج
-        $query->withMin('variants', 'price');
-
-        if ($request->sort === 'price_asc') {
-            $query->orderByRaw('COALESCE(products.price, variants_min_price) ASC');
-        } else {
-            $query->orderByRaw('COALESCE(products.price, variants_min_price) DESC');
-        }
-
-    } else {
-        // ترتيب عادي
-        switch ($request->sort) {
-            case 'newest':
-                $query->orderBy('created_at', 'desc');
-                break;
-            default:
-                $query->orderBy('id', 'desc');
-        }
-    }
-
-    // Pagination
-    $products = $query->paginate(30);
-
-    return new ProductCollection($products);
-}
-
-
 
     // ============================
-    // 2) عرض تفاصيل منتج + التقييمات
+    // 2) عرض منتج واحد
     // ============================
     public function show($id)
     {
-        $product = Product::with([
-            'images',
-            'variants.color',
-            'variants.size',
-            'category',
-            'mainImage',
-            'reviews.user' // ⭐ جلب التقييمات مع المستخدم
-        ])->find($id);
+        $product = $this->productService->getById($id);
 
         if (!$product) {
             return $this->error('المنتج غير موجود', 404);
@@ -171,24 +58,120 @@ if ($request->filled('price')) {
             return $this->error('المنتج محذوف ولا يمكن عرضه', 404);
         }
 
-        // ⭐ متوسط التقييم وعدد التقييمات
-        $averageRating = round($product->averageRating(), 2);
-        $reviewsCount  = $product->reviewsCount();
+        return $this->success('تم جلب المنتج بنجاح', $product);
+    }
 
-        // ⭐ هل المستخدم الحالي قيّم المنتج؟
-        $userHasReviewed = false;
-        if (auth()->check()) {
-            $userHasReviewed = Review::where('user_id', auth()->id())
-                ->where('product_id', $product->id)
-                ->exists();
+    // ============================
+    // 3) إضافة منتج جديد
+    // ============================
+    public function store(StoreProductRequest $request)
+    {
+        try {
+            $product = $this->productService->create($request->validated());
+            return $this->success('تم إنشاء المنتج بنجاح', $product);
+        } catch (\Exception $e) {
+            return $this->error('حدث خطأ أثناء إنشاء المنتج: ' . $e->getMessage(), 500);
+        }
+    }
+
+    // ============================
+    // رفع الصور
+    // ============================
+    public function uploadImages(Request $request, $id)
+    {
+        $request->validate([
+            'main_image' => ['nullable', 'image', 'max:4096'],
+            'images'     => ['nullable', 'array'],
+            'images.*'   => ['image', 'max:4096'],
+        ]);
+
+        $product = Product::find($id);
+
+        if (!$product) {
+            return $this->error('المنتج غير موجود', 404);
         }
 
-        return $this->success('تم جلب تفاصيل المنتج بنجاح', [
-            'product'          => new ProductDetailsResource($product),
-            'average_rating'   => $averageRating,
-            'reviews_count'    => $reviewsCount,
-            'user_has_reviewed'=> $userHasReviewed,
-            'reviews'          => $product->reviews()->latest()->get()
-        ]);
+        if ($product->deleted_at) {
+            return $this->error('لا يمكن رفع صور لمنتج محذوف', 400);
+        }
+
+        $updated = $this->productService->uploadImages($product, $request->all());
+
+        return $this->success('تم رفع الصور بنجاح', $updated);
     }
+
+    // ============================
+    // 4) تعديل المنتج
+    // ============================
+    public function update(UpdateProductRequest $request, Product $product)
+    {
+        if ($product->deleted_at) {
+            return $this->error('لا يمكن تعديل منتج محذوف', 400);
+        }
+
+        try {
+            $updated = $this->productService->update($product, $request->validated());
+            return $this->success('تم تعديل المنتج بنجاح', $updated);
+        } catch (\Exception $e) {
+            return $this->error('حدث خطأ أثناء التعديل: ' . $e->getMessage(), 500);
+        }
+    }
+
+    // ============================
+    // 5) حذف المنتج (Soft Delete)
+    // ============================
+    public function destroy(Product $product)
+    {
+        if ($product->deleted_at) {
+            return $this->error('المنتج محذوف مسبقًا', 400);
+        }
+
+        $this->productService->delete($product);
+
+        return $this->success('تم حذف المنتج بنجاح');
+    }
+
+    // ============================
+    // 6) استعادة المنتج
+    // ============================
+    public function restore($id)
+    {
+        $product = $this->productService->restore($id);
+
+        if (!$product) {
+            return $this->error('لا يوجد منتج محذوف بهذا الرقم', 404);
+        }
+
+        return $this->success('تم استعادة المنتج بنجاح', $product);
+    }
+    public function addStock(Request $request, $variantId)
+{
+    $request->validate([
+        'qty' => 'required|integer|min:1'
+    ]);
+
+    $variant = \App\Models\ProductVariant::findOrFail($variantId);
+
+    // زيادة المخزون للفاريانت + المنتج الأساسي
+    $this->productService->increaseStock($variant, $request->qty);
+
+    return $this->success('تمت إضافة المخزون بنجاح');
+}
+
+    // ============================
+    // تعديل سعر / بيانات فاريانت موجود
+    // ============================
+    public function updateVariant(Request $request, $variantId)
+    {
+        $request->validate([
+            'price' => 'sometimes|required|numeric|min:0',
+            'stock' => 'sometimes|required|integer|min:0',
+        ]);
+
+        $variant = \App\Models\ProductVariant::findOrFail($variantId);
+        $variant->update($request->only(['price', 'stock']));
+
+        return $this->success('تم تعديل الفاريانت بنجاح', $variant);
+    }
+
 }

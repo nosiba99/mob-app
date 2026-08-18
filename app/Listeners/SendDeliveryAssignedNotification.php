@@ -2,16 +2,16 @@
 
 namespace App\Listeners;
 
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Queue\InteractsWithQueue;
-
+use App\Events\DeliveryAssigned;
+use App\Notifications\DeliveryAssignedNotification;
 
 class SendDeliveryAssignedNotification
 {
     public function handle(DeliveryAssigned $event)
     {
-        $event->order->delivery->notify(
-            new DeliveryAssignedNotification($event->order)
-        );
+        $delivery = $event->delivery;
+
+        // إرسال إشعار للمندوب
+        $delivery->notify(new DeliveryAssignedNotification($event->order));
     }
 }

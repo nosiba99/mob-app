@@ -5,7 +5,7 @@ namespace App\Notifications;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Notification;
 
-class DeliveryInProgressNotification extends Notification
+class DeliveryArrivedNotification extends Notification
 {
     use Queueable;
 
@@ -19,14 +19,10 @@ class DeliveryInProgressNotification extends Notification
     public function toDatabase($notifiable)
     {
         return [
-            'title' => 'مندوبك في الطريق',
-            'body' => 'المندوب الآن في الطريق لتسليم الطلب رقم ' . $this->order->id,
+            'title' => 'المندوب وصل',
+            'body'  => 'المندوب وصل لمكان التسليم للطلب رقم ' . $this->order->id,
             'order_id' => $this->order->id,
+            'type' => 'delivery_arrived'
         ];
-    }
-
-    public function toArray($notifiable)
-    {
-        return $this->toDatabase($notifiable);
     }
 }

@@ -14,7 +14,11 @@ use App\Services\ProductService;
 use App\Models\User;
 use App\Models\Area;
 use App\Models\Warehouse;
+use App\Models\ProductVariant;
 use App\Models\OrderMessage;
+use App\Events\OrderCreated;
+use App\Events\DeliveryAssigned;
+use Illuminate\Support\Facades\DB;
 
 class OrderController extends Controller
 {
@@ -60,6 +64,12 @@ public function checkout(Request $request)
 {
     $user = auth()->user();
 
+    $request->validate([
+        'shipping_address' => 'required|string',
+        'notes'             => 'nullable|string',
+        'payment_method'    => 'nullable|in:wallet,cash',
+    ]);
+
     // السلة
     $cartItems = CartItem::with('variant')->where('user_id', $user->id)->get();
     if ($cartItems->isEmpty()) {
@@ -69,25 +79,26 @@ public function checkout(Request $request)
     // حساب السعر النهائي
     $totalPrice = 0;
     foreach ($cartItems as $item) {
-        $price = $item->variant->price;
-        $totalPrice += ($price * $item->quantity);
+        if (!$item->variant) {
+            return $this->error('أحد المنتجات بالسلة لم يعد متوفراً');
+        }
+        if (is_null($item->variant->price)) {
+            return $this->error('يوجد منتج بالسلة بدون سعر محدد، الرجاء التواصل مع الدعم');
+        }
+        $totalPrice += ($item->variant->price * $item->quantity);
     }
 
     // ⭐ تحديد المنطقة من العنوان
-   // ⭐ تحديد المنطقة من العنوان
-$addressWords = explode(' ', $request->shipping_address);
+    $addressWords = explode(' ', $request->shipping_address);
 
-$area = Area::where(function($query) use ($addressWords) {
-    foreach ($addressWords as $word) {
-        $query->orWhere('name', 'LIKE', '%' . $word . '%');
-    }
-})->first();
-
-if (!$area) {
-    return $this->error('لم يتم العثور على منطقة مناسبة لهذا العنوان');
-}
-
-
+    $area = Area::where(function ($query) use ($addressWords) {
+        foreach ($addressWords as $word) {
+            if (trim($word) === '') {
+                continue;
+            }
+            $query->orWhere('name', 'LIKE', '%' . $word . '%');
+        }
+    })->first();
 
     if (!$area) {
         return $this->error('لم يتم العثور على منطقة مناسبة لهذا العنوان');
@@ -100,39 +111,85 @@ if (!$area) {
         return $this->error('لا يوجد مستودع مرتبط بهذه المنطقة');
     }
 
-    // ⭐ إنشاء الطلب بالمنطقة والمستودع الصحيحين
-    $order = Order::create([
-        'user_id'       => $user->id,
-        'total_price'   => $totalPrice,
-        'payment_method'=> 'wallet',
-        'address'       => $request->shipping_address,
-        'notes'         => $request->notes,
-        'area_id'       => $area->id,
-        'warehouse_id'  => $warehouse->id,
-        'status'        => Order::STATUS_PENDING,
-    ]);
+    $paymentMethod = $request->payment_method ?? 'wallet';
 
-    // عناصر الطلب + خصم المخزون
+    // ⭐ التحقق من رصيد المحفظة قبل أي تعديل على الداتا
+    if ($paymentMethod === 'wallet' && $user->wallet_balance < $totalPrice) {
+        return $this->error('رصيد المحفظة غير كافٍ لإتمام الطلب');
+    }
+
+    // ⭐ التحقق من توفر المخزون داخل هذا المستودع تحديداً (product_warehouse)
+    $stockRows = [];
     foreach ($cartItems as $item) {
+        $stockRow = ProductWarehouse::where('warehouse_id', $warehouse->id)
+            ->where('variant_id', $item->variant_id)
+            ->lockForUpdate()
+            ->first();
 
-        $price = $item->variant->price;
-        $lineTotal = $price * $item->quantity;
+        if (!$stockRow || $stockRow->stock < $item->quantity) {
+            return $this->error(
+                'الكمية غير متوفرة حالياً في مستودع منطقتك لمنتج: ' .
+                    optional($item->product)->name
+            );
+        }
 
-        OrderItem::create([
-            'order_id'   => $order->id,
-            'product_id' => $item->product_id,
-            'variant_id' => $item->variant_id,
-            'quantity'   => $item->quantity,
-            'price'      => $price,
-            'total'      => $lineTotal,
+        $stockRows[$item->id] = $stockRow;
+    }
+
+    $order = DB::transaction(function () use ($user, $request, $area, $warehouse, $cartItems, $stockRows, $totalPrice, $paymentMethod) {
+
+        // ⭐ إنشاء الطلب بالمنطقة والمستودع الصحيحين
+        $order = Order::create([
+            'user_id'        => $user->id,
+            'total_price'    => $totalPrice,
+            'payment_method' => $paymentMethod,
+            'address'        => $request->shipping_address,
+            'notes'          => $request->notes,
+            'area_id'        => $area->id,
+            'warehouse_id'   => $warehouse->id,
+            'status'         => Order::STATUS_PENDING,
         ]);
 
-        $this->productService->decreaseStock($item->variant, $item->quantity);
-    }
-event(new OrderCreated($order));
+        // عناصر الطلب + خصم المخزون من نفس المستودع المحدد
+        foreach ($cartItems as $item) {
+            $price = $item->variant->price;
+            $lineTotal = $price * $item->quantity;
+
+            OrderItem::create([
+                'order_id'   => $order->id,
+                'product_id' => $item->product_id,
+                'variant_id' => $item->variant_id,
+                'quantity'   => $item->quantity,
+                'price'      => $price,
+                'total'      => $lineTotal,
+            ]);
+
+            // خصم من مخزون هذا المستودع تحديداً
+            $stockRows[$item->id]->decrement('stock', $item->quantity);
+        }
+
+        // ⭐ خصم من المحفظة وتسجيل الحركة
+        if ($paymentMethod === 'wallet') {
+            $user->decrement('wallet_balance', $totalPrice);
+
+            WalletTransaction::create([
+                'user_id'     => $user->id,
+                'amount'      => $totalPrice,
+                'type'        => 'purchase',
+                'description' => 'دفع ثمن الطلب رقم ' . $order->id,
+            ]);
+        }
+
+        return $order;
+    });
+
+    event(new OrderCreated($order));
 
     // تنظيف السلة
     CartItem::where('user_id', $user->id)->delete();
+
+    // إشعار المستخدم
+    (new \App\Services\OrderService())->notifyUser($user->id, 'تم إنشاء الطلب', 'طلبك قيد المعالجة الآن');
 
     // ⭐ إسناد الطلب للمندوب
     $this->assignDeliveryToOrder($order);
@@ -330,10 +387,13 @@ event(new OrderCreated($order));
    
 private function assignDeliveryToOrder(Order $order)
 {
-    // نجيب أقل مندوب طلبات في نفس المنطقة
+    // نجيب أقل مندوب طلبات، تابع لنفس المنطقة *و* نفس المستودع معاً
     $delivery = User::where('role', User::ROLE_DELIVERY)
         ->where('area_id', $order->area_id)
+        ->where('warehouse_id', $order->warehouse_id)
         ->where('is_banned', false)
+        ->where('is_active', true)
+        ->where('is_available', true)
         ->orderBy('active_orders', 'asc')   // أقل عدد طلبات
         ->first();
 
@@ -350,12 +410,13 @@ private function assignDeliveryToOrder(Order $order)
         'delivery_id' => $delivery->id,
         'status'      => Order::STATUS_ASSIGNED
     ]);
-event(new DeliveryAssigned($order, $deliveryEmployee));
+
+    event(new DeliveryAssigned($order, $delivery));
 
     // ⚠️ مهم جدًا:
     // لا نزيد active_orders هنا
     // لا نغير is_available هنا
-    // المندوب يبدأ العمل فقط عند قبول الطلب
+    // المندوب يبدأ العمل فقط عند قبول الطلب (بمرحلة accept بملف DeliveryStatusController)
 }
 
 

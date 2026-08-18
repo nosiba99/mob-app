@@ -14,12 +14,12 @@ class Warehouse extends Model
     protected $fillable = ['name', 'type'];
 
     /**
-     * المستودع يخدم عدة مناطق
+     * المستودع يخدم عدة مناطق (كل منطقة تابعة لمستودع واحد فقط)
      */
- public function areas()
-{
-    return $this->belongsToMany(Area::class, 'warehouse_area');
-}
+    public function areas()
+    {
+        return $this->hasMany(Area::class, 'warehouse_id');
+    }
 
 
     /**

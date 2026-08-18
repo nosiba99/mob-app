@@ -2,15 +2,16 @@
 
 namespace App\Listeners;
 
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Queue\InteractsWithQueue;
+use App\Events\UserLoggedIn;
+use App\Models\User;
+use App\Notifications\AdminUserLoggedInNotification;
 
 class SendAdminUserLoggedInNotification
-
 {
     public function handle(UserLoggedIn $event)
     {
         $admins = User::where('role', 'admin')->get();
+
         foreach ($admins as $admin) {
             $admin->notify(new AdminUserLoggedInNotification($event->user));
         }

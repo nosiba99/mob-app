@@ -76,19 +76,23 @@ class User extends Authenticatable
 {
     return $this->belongsTo(Area::class, 'area_id');
 }
-public function getWarehouseIdAttribute()
-{
-    return $this->area ? $this->area->warehouse_id : null;
-}
-
-
 
     /**
      * المستودع التابع له المستخدم (إذا كان مندوبًا)
+     * بيرجع القيمة المخزّنة فعلياً بعمود warehouse_id
      */
     public function warehouse()
     {
         return $this->belongsTo(Warehouse::class, 'warehouse_id');
+    }
+
+    /**
+     * لو المندوب ما إلو warehouse_id محدد يدوياً،
+     * منجيبو من مستودع منطقته كـ fallback بس
+     */
+    public function getEffectiveWarehouseId()
+    {
+        return $this->warehouse_id ?? optional($this->area)->warehouse_id;
     }
 
     /**

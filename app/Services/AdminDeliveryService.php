@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\User;
 use App\Models\Order;
+use App\Models\Area;
 use Illuminate\Support\Facades\Hash;
 
 class AdminDeliveryService
@@ -11,6 +12,10 @@ class AdminDeliveryService
     // إنشاء مندوب جديد
     public function create(array $data): User
     {
+        // لو ما تحدد warehouse_id يدوياً، منوّرثو من مستودع منطقته
+        $warehouseId = $data['warehouse_id']
+            ?? optional(Area::find($data['area_id']))->warehouse_id;
+
         return User::create([
             'first_name'       => $data['first_name'],
             'last_name'        => $data['last_name'],
@@ -19,6 +24,7 @@ class AdminDeliveryService
             'password'         => Hash::make($data['password']),
             'role'             => 'delivery',
             'area_id'          => $data['area_id'],
+            'warehouse_id'     => $warehouseId,
             'address'          => $data['address'],
             'building_number'  => $data['building_number'] ?? null,
             'floor_number'     => $data['floor_number'] ?? null,
@@ -49,6 +55,11 @@ class AdminDeliveryService
     // تعديل مندوب
     public function update(User $delivery, array $data): User
     {
+        // لو تغيّرت المنطقة ومافي warehouse_id محدد صراحة، منوّرثو من مستودع المنطقة الجديدة
+        if (isset($data['area_id']) && !isset($data['warehouse_id'])) {
+            $data['warehouse_id'] = optional(Area::find($data['area_id']))->warehouse_id;
+        }
+
         $delivery->update($data);
         return $delivery;
     }

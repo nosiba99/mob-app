@@ -3,11 +3,17 @@
 namespace App\Notifications;
 
 use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
+
 class AdminUserRegisteredNotification extends Notification
 {
+    public $user;
+
+    public function __construct($user)
+    {
+        $this->user = $user;
+    }
+
     public function via($notifiable)
     {
         return ['database'];
@@ -17,7 +23,7 @@ class AdminUserRegisteredNotification extends Notification
     {
         return [
             'title' => 'مستخدم جديد',
-            'body'  => 'تم تسجيل مستخدم جديد: ' . $this->user->name,
+            'body'  => 'تم تسجيل مستخدم جديد: ' . $this->user->first_name . ' ' . $this->user->last_name,
             'type'  => 'user_registered'
         ];
     }

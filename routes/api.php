@@ -92,8 +92,7 @@ Route::middleware('throttle:5,1')->group(function () {
         Route::get('/profile', [UserProfileController::class, 'show']);
         Route::put('/profile/update', [UserProfileController::class, 'update']);
 
-        // Notifications
-        Route::post('/notifications/read/{id}', [NotificationController::class, 'markAsRead']);
+        
     });
 });
 
@@ -141,6 +140,7 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function ()
     Route::delete('/products/{product}', [AdminProductController::class, 'destroy']);
     Route::post('/products/{product}/restore', [AdminProductController::class, 'restore']);
     Route::post('/products/stock/add/{variantId}', [AdminProductController::class, 'addStock']);
+    Route::put('/products/variants/{variantId}', [AdminProductController::class, 'updateVariant']);
 
 
     /*
@@ -221,7 +221,8 @@ Route::get('/status/{status}', [AdminOrderController::class, 'getByStatus']);
 
 
 
-Route::prefix('reports')->group(function () {
+// ⚠️ محمي: لازم تسجيل دخول + صلاحية أدمن منشان حدا يشوف أرباح المتجر
+Route::middleware(['auth:sanctum', 'admin'])->prefix('reports')->group(function () {
 
     // ---------------------------------------------------------
     // تقارير المستخدمين
@@ -239,6 +240,12 @@ Route::prefix('reports')->group(function () {
     Route::get('/revenue', [ReportsController::class, 'revenueStats']);
 
     // ---------------------------------------------------------
+    // حساب المتجر
+    // ---------------------------------------------------------
+    Route::get('/store-account', [ReportsController::class, 'storeAccount']);
+    Route::get('/store-account/transactions', [ReportsController::class, 'storeTransactions']);
+
+    // ---------------------------------------------------------
     // تقارير المستودعات
     // ---------------------------------------------------------
     Route::get('/warehouses', [ReportsController::class, 'warehouseStats']);
@@ -253,7 +260,6 @@ Route::prefix('reports')->group(function () {
     // ---------------------------------------------------------
     Route::get('/growth', [ReportsController::class, 'growthStats']);
 });
-
 
 Route::get('/notifications/admin', [NotificationController::class, 'adminNotifications'])
     ->middleware(['auth:sanctum', 'admin']);
@@ -294,8 +300,7 @@ Route::middleware(['auth:sanctum', 'delivery'])->group(function () {
     // ⭐ عرض تفاصيل طلب واحد
     Route::get('/delivery/orders/{orderId}', [DeliveryStatusController::class, 'show']);
 
-    // ⭐ إشعارات المندوب
-    Route::get('/notifications/delivery', [NotificationController::class, 'deliveryNotifications']);
+    
     
 
 });
@@ -350,8 +355,7 @@ Route::middleware(['auth:sanctum', 'user'])->prefix('user')->group(function () {
     Route::post('/reviews', [ReviewController::class, 'store']);
     Route::get('/reviews/{productId}', [ReviewController::class, 'index']);
 
-    // ⭐ Notifications
-    Route::get('/notifications/user', [NotificationController::class, 'userNotifications']);
+
 });
 
 
@@ -383,21 +387,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/wallet/transactions', [WalletController::class, 'transactions']);
 });
 
-
-// جلب كل الإشعارات
-Route::get('/notifications', [NotificationController::class, 'index']);
-
-// جلب الإشعارات غير المقروءة فقط
-Route::get('/notifications/unread', [NotificationController::class, 'unread']);
-
-// تعليم إشعار واحد كمقروء
-Route::post('/notifications/{id}/read', [NotificationController::class, 'markAsRead']);
-
-// تعليم كل الإشعارات كمقروءة
-Route::post('/notifications/read-all', [NotificationController::class, 'markAllAsRead']);
-
-// حذف إشعار واحد
-Route::delete('/notifications/{id}', [NotificationController::class, 'destroy']);
-
-// حذف كل الإشعارات
-Route::delete('/notifications', [NotificationController::class, 'clearAll']);
+Route::middleware('auth:sanctum')->group(function () {
+    Route::get('/notifications', [NotificationController::class, 'index']);
+    Route::get('/notifications/unread', [NotificationController::class, 'unread']);
+    Route::post('/notifications/{id}/read', [NotificationController::class, 'markAsRead']);
+});

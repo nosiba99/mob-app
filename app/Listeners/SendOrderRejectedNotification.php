@@ -2,12 +2,9 @@
 
 namespace App\Listeners;
 
-use App\Events\OrderAccepted;
-use App\Notifications\OrderAcceptedNotification;
+use App\Events\OrderRejected;
+use App\Notifications\OrderRejectedNotification;
 use Illuminate\Support\Facades\Notification;
-
-
-
 
 class SendOrderRejectedNotification
 {

@@ -21,6 +21,7 @@ use App\Events\AdminNewMessage;
 use App\Events\DeliveryAssigned;
 use App\Events\DeliveryInProgress;
 
+use App\Listeners\SendOrderAcceptedNotification;
 use App\Listeners\SendDeliveryArrivedNotification;
 use App\Listeners\SendDeliveryStartedNotification;
 use App\Listeners\SendDeliveryCompletedNotification;
@@ -49,63 +50,68 @@ class EventServiceProvider extends ServiceProvider
             SendDeliveryStartedNotification::class,
         ],
 
-    
-    DeliveryCompleted::class => [
-        SendDeliveryCompletedNotification::class,
-    ],
+        DeliveryCompleted::class => [
+            SendDeliveryCompletedNotification::class,
+        ],
 
-    OrderRejected::class => [
-        SendOrderRejectedNotification::class,
-    ],
+        OrderRejected::class => [
+            SendOrderRejectedNotification::class,
+        ],
 
+        UserRegistered::class => [
+            SendAdminUserRegisteredNotification::class,
+        ],
 
-    UserRegistered::class => [
-        SendAdminUserRegisteredNotification::class,
-    ],
+        UserLoggedIn::class => [
+            SendAdminUserLoggedInNotification::class,
+        ],
 
-    UserLoggedIn::class => [
-        SendAdminUserLoggedInNotification::class,
-    ],
+        OrderCreated::class => [
+            SendAdminOrderCreatedNotification::class,
+        ],
 
-    OrderCreated::class => [
-        SendAdminOrderCreatedNotification::class,
-    ],
+        OrderRejectedByDelivery::class => [
+            SendAdminOrderRejectedNotification::class,
+        ],
 
-    OrderRejectedByDelivery::class => [
-        SendAdminOrderRejectedNotification::class,
-    ],
+        OrderAcceptedByDelivery::class => [
+            SendAdminOrderAcceptedNotification::class,
+        ],
 
-    OrderAcceptedByDelivery::class => [
-        SendAdminOrderAcceptedNotification::class,
-    ],
+        OrderDelivered::class => [
+            SendAdminOrderDeliveredNotification::class,
+        ],
 
-    OrderDelivered::class => [
-        SendAdminOrderDeliveredNotification::class,
-    ],
+        OrderProblem::class => [
+            SendAdminOrderProblemNotification::class,
+        ],
 
-    OrderProblem::class => [
-        SendAdminOrderProblemNotification::class,
-    ],
+        AdminNewMessage::class => [
+            SendAdminNewMessageNotification::class,
+        ],
 
-    AdminNewMessage::class => [
-        SendAdminNewMessageNotification::class,
-    ],
+        DeliveryAssigned::class => [
+            SendDeliveryAssignedNotification::class,
+        ],
 
-
-    DeliveryAssigned::class => [
-        SendDeliveryAssignedNotification::class,
-    ],
-
-    DeliveryInProgress::class => [
-        SendDeliveryInProgressNotification::class,
-    ],
-];
-
-
-    
+        DeliveryInProgress::class => [
+            SendDeliveryInProgressNotification::class,
+        ],
+    ];
 
     public function boot(): void
     {
         //
+    }
+
+    /**
+     * ⚠️ لازم نعطّل الاكتشاف الذاتي للـ Listeners
+     * لأنو كل Listener عندنا مسجّل يدوياً فوق بمصفوفة $listen،
+     * ولو تركنا discovery مفعّل، كل Listener رح ينفّذ مرتين
+     * (مرة يدوياً ومرة تلقائياً) وهاد سبب تكرار الإشعارات.
+     */
+    public function shouldDiscoverEvents(): bool
+    {
+        return false;
     }
 }

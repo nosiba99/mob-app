@@ -13,6 +13,7 @@ use App\Models\User;
 use App\Models\OrderMessage;
 use Illuminate\Support\Str;
 use App\Events\OrderDelivered;
+use App\Events\OrderRejected;
 
 use Exception;
 
@@ -108,11 +109,16 @@ public function acceptOrder(Request $request, $orderId)
 
         try {
             $updatedOrder = $this->deliveryService->rejectOrder($delivery, $order);
-          
-            event(new AdminOrderRejected($order));
-            event(new OrderRejected($updatedOrder));
-            event(new DeliveryRejected($updatedOrder));
 
+            event(new OrderRejected($updatedOrder));
+
+            // نحاول نلاقي مندوب تاني متاح بنفس المنطقة والمستودع (غير المندوب يلي رفض)
+            try {
+                $updatedOrder = $this->deliveryService->assignDeliveryToOrder($updatedOrder, $delivery->id);
+            } catch (\Exception $e) {
+                // ما في مندوب تاني متاح حالياً — بيضل الطلب بحالة "waiting_delivery"
+                $updatedOrder->update(['status' => Order::STATUS_WAITING_DELIVERY]);
+            }
 
             return $this->success('تم رفض الطلب بنجاح', $updatedOrder);
 

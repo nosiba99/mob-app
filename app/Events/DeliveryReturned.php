@@ -4,15 +4,16 @@ namespace App\Events;
 
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
+use App\Models\Order;
 
-class AdminNewMessage
+class DeliveryReturned
 {
     use Dispatchable, SerializesModels;
 
-    public $message;
+    public $order;
 
-    public function __construct($message)
+    public function __construct(Order $order)
     {
-        $this->message = $message;
+        $this->order = $order;
     }
 }

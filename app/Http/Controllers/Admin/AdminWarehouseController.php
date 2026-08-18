@@ -30,12 +30,9 @@ class AdminWarehouseController extends Controller
         ], $code);
     }
 
-    // ================================
-    // عرض جميع المستودعات (مختصر)
-    // ================================
     public function index()
     {
-        $warehouses = Warehouse::with('areas:id,name')
+        $warehouses = Warehouse::with('areas:id,name,warehouse_id')
             ->select('id', 'name', 'type')
             ->get()
             ->map(function ($warehouse) {
@@ -53,74 +50,61 @@ class AdminWarehouseController extends Controller
         return $this->success('تم جلب المستودعات بنجاح', $warehouses);
     }
 
-    // ================================
-    // عرض مستودع واحد (مختصر)
-    // ================================
-public function show($id)
-{
-    $warehouse = Warehouse::with([
-        'areas:id,name',
-        'products:id,name'
-    ])->find($id);
+    public function show($id)
+    {
+        $warehouse = Warehouse::with([
+            'areas:id,name',
+            'products:id,name'
+        ])->find($id);
 
-    if (!$warehouse) {
-        return $this->error('المستودع غير موجود', 404);
-    }
+        if (!$warehouse) {
+            return $this->error('المستودع غير موجود', 404);
+        }
 
-    // ترتيب المناطق
-    $areas = $warehouse->areas->map(fn($a) => [
-        'id'   => $a->id,
-        'name' => $a->name
-    ]);
+        $areas = $warehouse->areas->map(fn($a) => [
+            'id'   => $a->id,
+            'name' => $a->name
+        ]);
 
-    // ترتيب المنتجات
-    $products = $warehouse->products->map(fn($p) => [
-        'id'   => $p->id,
-        'name' => $p->name
-    ]);
+        $products = $warehouse->products->map(fn($p) => [
+            'id'   => $p->id,
+            'name' => $p->name
+        ]);
 
-    // ترتيب الفاريانتات داخل المستودع مع حماية null
-    $variants = ProductWarehouse::where('warehouse_id', $warehouse->id)
-        ->with('variant.product')
-        ->get()
-        ->map(function ($item) {
+        $variants = ProductWarehouse::where('warehouse_id', $warehouse->id)
+            ->with('variant.product')
+            ->get()
+            ->map(function ($item) {
+                if (!$item->variant || !$item->variant->product) {
+                    return [
+                        'variant_id'   => $item->variant_id,
+                        'product_name' => null,
+                        'variant_name' => null,
+                        'stock'        => $item->stock,
+                        'warning'      => 'variant_missing_or_deleted'
+                    ];
+                }
 
-            // إذا الفاريانت أو المنتج ناقص → ما نوقع النظام
-            if (!$item->variant || !$item->variant->product) {
                 return [
                     'variant_id'   => $item->variant_id,
-                    'product_name' => null,
-                    'variant_name' => null,
+                    'product_name' => $item->variant->product->name,
+                    'variant_name' => $item->variant->name ?? '',
                     'stock'        => $item->stock,
-                    'warning'      => 'variant_missing_or_deleted'
                 ];
-            }
+            });
 
-            return [
-                'variant_id'   => $item->variant_id,
-                'product_name' => $item->variant->product->name,
-                'variant_name' => $item->variant->name ?? '',
-                'stock'        => $item->stock,
-            ];
-        });
+        $data = [
+            'id'       => $warehouse->id,
+            'name'     => $warehouse->name,
+            'type'     => $warehouse->type,
+            'areas'    => $areas,
+            'products' => $products,
+            'variants' => $variants
+        ];
 
-    // الريسبونس النهائي
-    $data = [
-        'id'       => $warehouse->id,
-        'name'     => $warehouse->name,
-        'type'     => $warehouse->type,
-        'areas'    => $areas,
-        'products' => $products,
-        'variants' => $variants
-    ];
+        return $this->success('تم جلب تفاصيل المستودع', $data);
+    }
 
-    return $this->success('تم جلب تفاصيل المستودع', $data);
-}
-
-
-    // ================================
-    // إضافة مستودع جديد
-    // ================================
     public function store(Request $request)
     {
         $request->validate([
@@ -132,7 +116,7 @@ public function show($id)
         $warehouse = Warehouse::create($request->only(['name', 'type']));
 
         if ($request->areas) {
-            $warehouse->areas()->sync($request->areas);
+            Area::whereIn('id', $request->areas)->update(['warehouse_id' => $warehouse->id]);
         }
 
         return $this->success('تم إنشاء المستودع بنجاح', [
@@ -146,9 +130,6 @@ public function show($id)
         ]);
     }
 
-    // ================================
-    // تعديل مستودع
-    // ================================
     public function update(Request $request, $id)
     {
         $warehouse = Warehouse::find($id);
@@ -160,7 +141,11 @@ public function show($id)
         $warehouse->update($request->only(['name', 'type']));
 
         if ($request->areas) {
-            $warehouse->areas()->sync($request->areas);
+            Area::where('warehouse_id', $warehouse->id)
+                ->whereNotIn('id', $request->areas)
+                ->update(['warehouse_id' => null]);
+
+            Area::whereIn('id', $request->areas)->update(['warehouse_id' => $warehouse->id]);
         }
 
         return $this->success('تم تعديل المستودع بنجاح', [
@@ -174,9 +159,6 @@ public function show($id)
         ]);
     }
 
-    // ================================
-    // حذف مستودع
-    // ================================
     public function destroy($id)
     {
         $warehouse = Warehouse::find($id);
@@ -190,19 +172,9 @@ public function show($id)
         return $this->success('تم حذف المستودع بنجاح');
     }
 
-   
-
-    
-    // ================================
-    // حالة المخزون داخل المستودع
-    // ================================
-   
-    // ================================
-    // عرض المناطق المرتبطة بالمستودع
-    // ================================
     public function areas($id)
     {
-        $warehouse = Warehouse::with('areas:id,name')->find($id);
+        $warehouse = Warehouse::with('areas:id,name,warehouse_id')->find($id);
 
         if (!$warehouse) {
             return $this->error('المستودع غير موجود', 404);
@@ -216,9 +188,6 @@ public function show($id)
         return $this->success('تم جلب المناطق المرتبطة بالمستودع', $areas);
     }
 
-    // ================================
-    // ربط منطقة بمستودع
-    // ================================
     public function attachArea(Request $request, $id)
     {
         $request->validate([
@@ -231,14 +200,11 @@ public function show($id)
             return $this->error('المستودع غير موجود', 404);
         }
 
-        $warehouse->areas()->syncWithoutDetaching([$request->area_id]);
+        Area::where('id', $request->area_id)->update(['warehouse_id' => $warehouse->id]);
 
         return $this->success('تم ربط المنطقة بالمستودع');
     }
 
-    // ================================
-    // إزالة منطقة من مستودع
-    // ================================
     public function detachArea(Request $request, $id)
     {
         $request->validate([
@@ -251,14 +217,13 @@ public function show($id)
             return $this->error('المستودع غير موجود', 404);
         }
 
-        $warehouse->areas()->detach($request->area_id);
+        Area::where('id', $request->area_id)
+            ->where('warehouse_id', $warehouse->id)
+            ->update(['warehouse_id' => null]);
 
         return $this->success('تم إزالة المنطقة من المستودع');
     }
 
-    // ================================
-    // تنبيهات المخزون
-    // ================================
     public function alerts()
     {
         $products = Product::whereColumn('stock', '<=', 'min_stock')
@@ -268,9 +233,6 @@ public function show($id)
         return $this->success('تنبيهات المخزون', $products);
     }
 
-    // ================================
-    // ربط فاريانت بمستودع
-    // ================================
     public function attachVariant(Request $request, $id)
     {
         $request->validate([
@@ -297,9 +259,6 @@ public function show($id)
         return $this->success('تم ربط الفاريانت بالمستودع وتحديث الكمية');
     }
 
-    // ================================
-    // إزالة فاريانت من مستودع
-    // ================================
     public function detachVariant(Request $request, $id)
     {
         $request->validate([
@@ -319,9 +278,6 @@ public function show($id)
         return $this->success('تم إزالة الفاريانت من المستودع');
     }
 
-    // ================================
-    // مخزون الفاريانت داخل المستودع
-    // ================================
     public function stockVariants($id)
     {
         $warehouse = Warehouse::find($id);

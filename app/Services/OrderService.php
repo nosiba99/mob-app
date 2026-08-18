@@ -7,8 +7,7 @@ use App\Models\OrderItem;
 use App\Models\Area;
 use App\Models\User;
 use App\Models\Warehouse;
-use App\Models\WarehouseStock;
-use App\Models\Delivery;
+use App\Models\ProductWarehouse;
 use App\Models\Notification;   // 🔥 مهم جداً
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -128,126 +127,12 @@ class OrderService
         $order->save();
     }
 
-    // ─────────────────────────────────────────────
-    // قسم إنشاء الطلب الذكي (المستودع + المندوب)
-    // ─────────────────────────────────────────────
-
-    public function createOrderSmart($user, $cartItems)
-    {
-        // 1) تحديد المستودع الأقرب
-        $warehouse = Warehouse::where('area_id', $user->area_id)->first();
-
-        if (!$warehouse) {
-            return [
-                'status' => false,
-                'message' => 'لا يوجد مستودع يخدم منطقتك حالياً'
-            ];
-        }
-
-        // 2) التحقق من توفر المنتجات
-        $missingProducts = [];
-
-        foreach ($cartItems as $item) {
-            $stock = WarehouseStock::where('warehouse_id', $warehouse->id)
-                                   ->where('product_id', $item['product_id'])
-                                   ->first();
-
-            if (!$stock || $stock->quantity < $item['quantity']) {
-                $missingProducts[] = $item;
-            }
-        }
-
-        // 3) محاولة مستودع آخر
-        $deliveryDelay = false;
-
-        if (!empty($missingProducts)) {
-
-            $alternativeWarehouse = null;
-
-            foreach ($missingProducts as $item) {
-
-                $alternativeWarehouse = WarehouseStock::where('product_id', $item['product_id'])
-                    ->where('quantity', '>=', $item['quantity'])
-                    ->first();
-
-                if (!$alternativeWarehouse) {
-                    return [
-                        'status' => false,
-                        'message' => "المنتج {$item['name']} غير متوفر حالياً في أي مستودع",
-                        'order_status' => 'waiting_stock'
-                    ];
-                }
-            }
-
-            // تحويل المستودع
-            $warehouse = Warehouse::find($alternativeWarehouse->warehouse_id);
-            $deliveryDelay = true;
-        }
-
-        // 4) إنشاء الطلب
-        $order = Order::create([
-            'user_id'      => $user->id,
-            'warehouse_id' => $warehouse->id,
-            'status'       => 'pending',
-            'barcode'      => Str::random(10),
-            'delivery_delay' => $deliveryDelay
-        ]);
-
-        // 🔥 إشعار المستخدم
-        $this->notifyUser($user->id, 'تم إنشاء الطلب', 'طلبك قيد المعالجة الآن');
-
-        // 4.1) خصم المخزون
-        foreach ($cartItems as $item) {
-            $stock = WarehouseStock::where('warehouse_id', $warehouse->id)
-                                   ->where('product_id', $item['product_id'])
-                                   ->first();
-
-            if ($stock && $stock->quantity >= $item['quantity']) {
-                $stock->decrement('quantity', $item['quantity']);
-            }
-        }
-
-        // 5) اختيار مندوب ذكي
-        $delivery = Delivery::where('area_id', $warehouse->area_id)
-                        ->where('is_online', true)
-                        ->where('is_available', true)
-                        ->orderBy('active_orders', 'asc')
-                        ->first();
-
-        if (!$delivery) {
-            $order->update(['status' => 'waiting_delivery']);
-
-            return [
-                'status' => true,
-                'message' => 'تم إنشاء الطلب، سيتم تعيين مندوب فور توفره',
-                'data' => $order
-            ];
-        }
-
-        // 6) تعيين المندوب
-        $order->update([
-            'delivery_id' => $delivery->id,
-            'status'      => 'assigned'
-        ]);
-
-        // 7) تحديث حالة المندوب
-        $maxOrders = 5;
-        $newActiveOrders = $delivery->active_orders + 1;
-
-        $delivery->update([
-            'active_orders'    => $newActiveOrders,
-            'is_available'     => $newActiveOrders < $maxOrders,
-            'last_assigned_at' => now()
-        ]);
-
-        return [
-            'status' => true,
-            'message' => $deliveryDelay
-                ? 'تم إنشاء الطلب وتحويله لمستودع آخر (قد يتأخر التوصيل)'
-                : 'تم إنشاء الطلب وتعيينه تلقائياً للمندوب',
-            'data' => $order
-        ];
-    }
+    // ملاحظة: تم حذف createOrderSmart() القديمة لأنها كانت تستخدم
+    // عمود warehouses.area_id (محذوف من قاعدة البيانات) وموديل Delivery
+    // وموديل WarehouseStock غير الموجودين أصلاً بالمشروع.
+    // منطق إنشاء الطلب الفعلي والصحيح موجود الآن بـ
+    // OrderController::checkout() و OrderController::assignDeliveryToOrder()
+    // واللي بيستخدما ProductWarehouse (المخزون الحقيقي حسب كل مستودع).
 
     // ─────────────────────────────────────────────
     // نظام تتبع حالة الطلب

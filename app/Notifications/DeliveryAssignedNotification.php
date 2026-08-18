@@ -20,7 +20,7 @@ class DeliveryAssignedNotification extends Notification
     {
         return [
             'title' => 'تم تعيين طلب جديد لك',
-            'body'  => 'تم تعيين الطلب رقم ' . $this->order->id . ' لك.',
+            'body' => 'تم تعيين الطلب رقم ' . $this->order->id . ' لك.',
             'order_id' => $this->order->id,
         ];
     }

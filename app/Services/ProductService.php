@@ -198,22 +198,51 @@ public function create(array $data)
         $product->restore();
         return $product;
     }
-   public function decreaseStock(ProductVariant $variant, int $qty)
-{
-    // نقص من الفاريانت فقط
-    $variant->decrement('stock', $qty);
+  
 
-    // ممنوع تنقصي من المنتج الأساسي
-    // لأنه يسبب قيم سالبة ويخرب النظام
+
+public function decreaseStock(ProductVariant $variant, int $qty, int $warehouseId)
+{
+    // 1) خصم من مخزون المستودع
+    $pw = \App\Models\ProductWarehouse::where('variant_id', $variant->id)
+        ->where('warehouse_id', $warehouseId)
+        ->first();
+
+    if (!$pw) {
+        throw new \Exception('هذا المنتج غير موجود في مستودع المنطقة');
+    }
+
+    if ($pw->stock < $qty) {
+        throw new \Exception('الكمية المطلوبة غير متوفرة في المستودع');
+    }
+
+    $pw->stock -= $qty;
+    $pw->save();
+
+    // 2) خصم من مخزون الفاريانت العام
+    if ($variant->stock < $qty) {
+        throw new \Exception('مخزون الفاريانت غير كافٍ');
+    }
+
+    $variant->stock -= $qty;
+    $variant->save();
 }
 
-public function increaseStock(ProductVariant $variant, int $qty)
+public function increaseStock(ProductVariant $variant, int $qty, int $warehouseId)
 {
-    // زيدي مخزون الفاريانت فقط
-    $variant->increment('stock', $qty);
+    $pw = \App\Models\ProductWarehouse::where('variant_id', $variant->id)
+        ->where('warehouse_id', $warehouseId)
+        ->first();
 
-    // لا تزيدي مخزون المنتج الأساسي
+    if (!$pw) {
+        throw new \Exception('لا يمكن زيادة المخزون — المستودع غير موجود');
+    }
+
+    $pw->stock += $qty;
+    $pw->save();
+
+    $variant->stock += $qty;
+    $variant->save();
 }
-
 
 }
