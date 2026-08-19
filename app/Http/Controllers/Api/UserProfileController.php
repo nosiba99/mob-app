@@ -13,7 +13,7 @@ class UserProfileController extends Controller
 
         return response()->json([
             'status'  => true,
-            'message' => 'تم جلب بيانات المستخدم بنجاح',
+            'message' => __('تم جلب بيانات المستخدم بنجاح'),
             'data'    => [
                 'id'         => $user->id,
                 'first_name' => $user->first_name,
@@ -38,7 +38,7 @@ class UserProfileController extends Controller
 
         return response()->json([
             'status'  => true,
-            'message' => 'تم تحديث بيانات المستخدم بنجاح',
+            'message' => __('تم تحديث بيانات المستخدم بنجاح'),
             'data'    => [
                 'id'         => $user->id,
                 'first_name' => $user->first_name,

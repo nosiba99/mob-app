@@ -37,14 +37,14 @@ class AreaController extends Controller
 
         $area = $this->areaService->create($request->all());
 
-        return $this->success('Area created successfully', $area);
+        return $this->success(__('Area created successfully'), $area);
     }
 
     // عرض كل المناطق
     public function index()
     {
         $areas = $this->areaService->getAll();
-        return $this->success('Areas retrieved successfully', $areas);
+        return $this->success(__('Areas retrieved successfully'), $areas);
     }
 
     // حذف منطقة
@@ -53,15 +53,15 @@ class AreaController extends Controller
         $area = $this->areaService->getById($id);
 
         if (!$area) {
-            return $this->error('Area not found', 404);
+            return $this->error(__('Area not found'), 404);
         }
 
         $deleted = $this->areaService->delete($area);
 
         if (!$deleted) {
-            return $this->error('Cannot delete area because delivery employees are assigned to it', 400);
+            return $this->error(__('Cannot delete area because delivery employees are assigned to it'), 400);
         }
 
-        return $this->success('Area deleted successfully');
+        return $this->success(__('Area deleted successfully'));
     }
 }

@@ -30,7 +30,7 @@ class AuthController extends Controller
 
         return response()->json([
             'status'  => true,
-            'message' => 'تم التسجيل! تحقق من بريدك الإلكتروني.',
+            'message' => __('تم التسجيل! تحقق من بريدك الإلكتروني.'),
         ], 201);
     }
 
@@ -51,7 +51,7 @@ class AuthController extends Controller
     if (!$otpRecord) {
         return response()->json([
             'status'  => false,
-            'message' => 'رمز غير صالح أو منتهي.'
+            'message' => __('رمز غير صالح أو منتهي.')
         ], 422);
     }
 
@@ -61,7 +61,7 @@ class AuthController extends Controller
     if (!$user) {
         return response()->json([
             'status'  => false,
-            'message' => 'المستخدم غير موجود.'
+            'message' => __('المستخدم غير موجود.')
         ], 422);
     }
 
@@ -69,7 +69,7 @@ class AuthController extends Controller
     if (!$this->otpService->verify($user, $request->otp, 'email_verification')) {
         return response()->json([
             'status'  => false,
-            'message' => 'رمز غير صالح أو منتهي.'
+            'message' => __('رمز غير صالح أو منتهي.')
         ], 422);
     }
 
@@ -88,7 +88,7 @@ class AuthController extends Controller
 
     return response()->json([
         'status'  => true,
-        'message' => 'تم التحقق وتفعيل الحساب بنجاح',
+        'message' => __('تم التحقق وتفعيل الحساب بنجاح'),
         'token'   => $token,
         'user'    => [
             'id'         => $user->id,
@@ -109,7 +109,7 @@ class AuthController extends Controller
         if (!$result) {
             return response()->json([
                 'status'  => false,
-                'message' => 'بيانات الدخول غير صحيحة.'
+                'message' => __('بيانات الدخول غير صحيحة.')
             ], 401);
         }
 
@@ -118,7 +118,7 @@ class AuthController extends Controller
         if ($user->is_banned) {
             return response()->json([
                 'status'  => false,
-                'message' => 'تم حظر حسابك من قبل الإدارة'
+                'message' => __('تم حظر حسابك من قبل الإدارة')
             ], 403);
         }
 
@@ -126,14 +126,14 @@ class AuthController extends Controller
             $this->otpService->generate($user, 'email_verification');
             return response()->json([
                 'status'  => false,
-                'message' => 'حسابك غير مفعّل. أُرسل رمز جديد لبريدك.'
+                'message' => __('حسابك غير مفعّل. أُرسل رمز جديد لبريدك.')
             ], 403);
         }
          event(new UserLoggedIn($user));
 
         return response()->json([
             'status'  => true,
-            'message' => 'تم تسجيل الدخول بنجاح',
+            'message' => __('تم تسجيل الدخول بنجاح'),
             'token'   => $result['token'],
             'user'    => [
                 'id'         => $user->id,
@@ -152,7 +152,7 @@ class AuthController extends Controller
 
         return response()->json([
             'status'  => true,
-            'message' => 'تم تسجيل الخروج.'
+            'message' => __('تم تسجيل الخروج.')
         ]);
     }
 
@@ -166,7 +166,7 @@ class AuthController extends Controller
 
         return response()->json([
             'status'  => true,
-            'message' => 'تم إرسال رمز جديد.'
+            'message' => __('تم إرسال رمز جديد.')
         ]);
     }
 
@@ -189,7 +189,7 @@ class AuthController extends Controller
 
         return response()->json([
             'status'  => true,
-            'message' => 'تم إرسال رمز إعادة التعيين إلى بريدك.'
+            'message' => __('تم إرسال رمز إعادة التعيين إلى بريدك.')
         ]);
     }
 
@@ -207,7 +207,7 @@ class AuthController extends Controller
         if (!$otpRecord) {
             return response()->json([
                 'status'  => false,
-                'message' => 'رمز غير صالح أو منتهي.'
+                'message' => __('رمز غير صالح أو منتهي.')
             ], 400);
         }
 
@@ -218,7 +218,7 @@ class AuthController extends Controller
 
         return response()->json([
             'status'  => true,
-            'message' => 'تم التحقق من الرمز',
+            'message' => __('تم التحقق من الرمز'),
             'token'   => $token,
         ]);
     }
@@ -236,7 +236,7 @@ public function resetPassword(ResetPasswordRequest $request)
 
     return response()->json([
         'status'  => true,
-        'message' => 'تم تغيير كلمة المرور بنجاح'
+        'message' => __('تم تغيير كلمة المرور بنجاح')
     ]);
 }
 

@@ -50,15 +50,14 @@ class DeliveryController extends Controller
 
         $delivery = $this->deliveryService->create($validated);
 
-        return $this->success('Delivery employee created successfully', $delivery);
+        return $this->success(__('Delivery employee created successfully'), $delivery);
     }
 
     // عرض كل المندوبين
   public function index()
 {
     $deliveries = $this->deliveryService->getAll();
-    return $this->success(
-        'Delivery employees retrieved successfully',
+    return $this->success(__('Delivery employees retrieved successfully'),
         DeliveryShortResource::collection($deliveries)
     );
 }
@@ -69,10 +68,10 @@ class DeliveryController extends Controller
         $delivery = $this->deliveryService->getById($id);
 
         if (!$delivery) {
-            return $this->error('Delivery employee not found', 404);
+            return $this->error(__('Delivery employee not found'), 404);
         }
 
-        return $this->success('Delivery employee retrieved successfully', $delivery);
+        return $this->success(__('Delivery employee retrieved successfully'), $delivery);
     }
 
   
@@ -82,7 +81,7 @@ public function update(Request $request, $id)
     $delivery = User::where('role', 'delivery')->find($id);
 
     if (!$delivery) {
-        return $this->error('Delivery employee not found', 404);
+        return $this->error(__('Delivery employee not found'), 404);
     }
 
     $request->validate([
@@ -110,7 +109,7 @@ public function update(Request $request, $id)
 
     $updated = $this->deliveryService->update($delivery, $request->all());
 
-    return $this->success('Delivery employee updated successfully', $updated);
+    return $this->success(__('Delivery employee updated successfully'), $updated);
 }
 
 
@@ -120,16 +119,16 @@ public function update(Request $request, $id)
         $delivery = User::where('role', 'delivery')->find($id);
 
         if (!$delivery) {
-            return $this->error('Delivery employee not found', 404);
+            return $this->error(__('Delivery employee not found'), 404);
         }
 
         $deleted = $this->deliveryService->delete($delivery);
 
         if (!$deleted) {
-            return $this->error('Cannot delete delivery employee because they have active orders', 400);
+            return $this->error(__('Cannot delete delivery employee because they have active orders'), 400);
         }
 
-        return $this->success('Delivery employee deleted successfully');
+        return $this->success(__('Delivery employee deleted successfully'));
     }
 
     // جلب مندوبين حسب المنطقة
@@ -137,6 +136,6 @@ public function update(Request $request, $id)
     {
         $deliveries = $this->deliveryService->getByArea($areaId);
 
-        return $this->success('Delivery employees retrieved successfully', $deliveries);
+        return $this->success(__('Delivery employees retrieved successfully'), $deliveries);
     }
 }

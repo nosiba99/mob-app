@@ -29,7 +29,7 @@ class WalletController extends Controller
         ]);
 
         return response()->json([
-            'message' => 'تم شحن الرصيد بنجاح',
+            'message' => __('تم شحن الرصيد بنجاح'),
             'balance' => $user->wallet_balance,
         ]);
     }

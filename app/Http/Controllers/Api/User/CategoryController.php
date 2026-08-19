@@ -36,7 +36,7 @@ class CategoryController extends Controller
 
         return response()->json([
             'status'  => true,
-            'message' => 'تم جلب منتجات التصنيف بنجاح',
+            'message' => __('تم جلب منتجات التصنيف بنجاح'),
 
             'data' => [
                 'category' => new CategoryResource($category),

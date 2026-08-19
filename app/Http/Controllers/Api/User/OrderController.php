@@ -73,17 +73,17 @@ public function checkout(Request $request)
     // السلة
     $cartItems = CartItem::with('variant')->where('user_id', $user->id)->get();
     if ($cartItems->isEmpty()) {
-        return $this->error('السلة فارغة');
+        return $this->error(__('السلة فارغة'));
     }
 
     // حساب السعر النهائي
     $totalPrice = 0;
     foreach ($cartItems as $item) {
         if (!$item->variant) {
-            return $this->error('أحد المنتجات بالسلة لم يعد متوفراً');
+            return $this->error(__('أحد المنتجات بالسلة لم يعد متوفراً'));
         }
         if (is_null($item->variant->price)) {
-            return $this->error('يوجد منتج بالسلة بدون سعر محدد، الرجاء التواصل مع الدعم');
+            return $this->error(__('يوجد منتج بالسلة بدون سعر محدد، الرجاء التواصل مع الدعم'));
         }
         $totalPrice += ($item->variant->price * $item->quantity);
     }
@@ -101,21 +101,21 @@ public function checkout(Request $request)
     })->first();
 
     if (!$area) {
-        return $this->error('لم يتم العثور على منطقة مناسبة لهذا العنوان');
+        return $this->error(__('لم يتم العثور على منطقة مناسبة لهذا العنوان'));
     }
 
     // ⭐ تحديد المستودع التابع للمنطقة
     $warehouse = Warehouse::find($area->warehouse_id);
 
     if (!$warehouse) {
-        return $this->error('لا يوجد مستودع مرتبط بهذه المنطقة');
+        return $this->error(__('لا يوجد مستودع مرتبط بهذه المنطقة'));
     }
 
     $paymentMethod = $request->payment_method ?? 'wallet';
 
     // ⭐ التحقق من رصيد المحفظة قبل أي تعديل على الداتا
     if ($paymentMethod === 'wallet' && $user->wallet_balance < $totalPrice) {
-        return $this->error('رصيد المحفظة غير كافٍ لإتمام الطلب');
+        return $this->error(__('رصيد المحفظة غير كافٍ لإتمام الطلب'));
     }
 
     // ⭐ التحقق من توفر المخزون داخل هذا المستودع تحديداً (product_warehouse)
@@ -127,8 +127,7 @@ public function checkout(Request $request)
             ->first();
 
         if (!$stockRow || $stockRow->stock < $item->quantity) {
-            return $this->error(
-                'الكمية غير متوفرة حالياً في مستودع منطقتك لمنتج: ' .
+            return $this->error(__('الكمية غير متوفرة حالياً في مستودع منطقتك لمنتج: ') .
                     optional($item->product)->name
             );
         }
@@ -194,7 +193,7 @@ public function checkout(Request $request)
     // ⭐ إسناد الطلب للمندوب
     $this->assignDeliveryToOrder($order);
 
-    return $this->success('تم إنشاء الطلب بنجاح', [
+    return $this->success(__('تم إنشاء الطلب بنجاح'), [
         'order_id'     => $order->id,
         'total'        => $order->total_price,
         'area_id'      => $order->area_id,
@@ -224,7 +223,7 @@ public function checkout(Request $request)
         ];
     });
 
-    return $this->success('طلبات المستخدم', $data);
+    return $this->success(__('طلبات المستخدم'), $data);
 }
 
 
@@ -240,7 +239,7 @@ public function checkout(Request $request)
             ->latest()
             ->get();
 
-        return $this->success('الطلبات المؤرشفة', OrderResource::collection($orders));
+        return $this->success(__('الطلبات المؤرشفة'), OrderResource::collection($orders));
     }
 
     /* ============================
@@ -255,12 +254,12 @@ public function checkout(Request $request)
             ->first();
 
         if (!$order) {
-            return $this->error('الطلب غير موجود أو غير مؤرشف');
+            return $this->error(__('الطلب غير موجود أو غير مؤرشف'));
         }
 
         $order->restore();
 
-        return $this->success('تم استعادة الطلب', new OrderResource($order));
+        return $this->success(__('تم استعادة الطلب'), new OrderResource($order));
     }
 
     /* ============================
@@ -275,12 +274,12 @@ public function checkout(Request $request)
             ->first();
 
         if (!$order) {
-            return $this->error('الطلب غير موجود أو غير مؤرشف');
+            return $this->error(__('الطلب غير موجود أو غير مؤرشف'));
         }
 
         $order->forceDelete();
 
-        return $this->success('تم حذف الطلب نهائيًا');
+        return $this->success(__('تم حذف الطلب نهائيًا'));
     }
 
     /* ============================
@@ -295,7 +294,7 @@ public function checkout(Request $request)
         ->first();
 
     if (!$order) {
-        return $this->error('الطلب غير موجود');
+        return $this->error(__('الطلب غير موجود'));
     }
 
     $data = [
@@ -319,7 +318,7 @@ public function checkout(Request $request)
         }),
     ];
 
-    return $this->success('تفاصيل الطلب', $data);
+    return $this->success(__('تفاصيل الطلب'), $data);
 }
 
     /* ============================
@@ -333,12 +332,12 @@ public function checkout(Request $request)
             ->first();
 
         if (!$order) {
-            return $this->error('الطلب غير موجود');
+            return $this->error(__('الطلب غير موجود'));
         }
 
         $order->update($request->only(['address', 'notes']));
 
-        return $this->success('تم تحديث الطلب بنجاح', new OrderResource($order));
+        return $this->success(__('تم تحديث الطلب بنجاح'), new OrderResource($order));
     }
 
     /* ============================
@@ -352,12 +351,12 @@ public function checkout(Request $request)
             ->first();
 
         if (!$order) {
-            return $this->error('الطلب غير موجود');
+            return $this->error(__('الطلب غير موجود'));
         }
 
         $order->delete();
 
-        return $this->success('تم حذف الطلب');
+        return $this->success(__('تم حذف الطلب'));
     }
 
     /* ============================
@@ -382,7 +381,7 @@ public function checkout(Request $request)
         $order->status = Order::STATUS_RETURNED;
         $order->save();
 
-        return $this->success('تم استرجاع الرصيد بنجاح');
+        return $this->success(__('تم استرجاع الرصيد بنجاح'));
     }
    
 private function assignDeliveryToOrder(Order $order)

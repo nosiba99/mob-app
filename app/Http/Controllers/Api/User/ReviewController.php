@@ -42,7 +42,7 @@ class ReviewController extends Controller
     if (!$hasPurchased) {
         return response()->json([
             'status'  => false,
-            'message' => 'لا يمكنك تقييم منتج لم تقم بشرائه.'
+            'message' => __('لا يمكنك تقييم منتج لم تقم بشرائه.')
         ], 403);
     }
 
@@ -60,7 +60,7 @@ class ReviewController extends Controller
 
     return response()->json([
         'status'  => true,
-        'message' => 'تم إضافة التقييم بنجاح',
+        'message' => __('تم إضافة التقييم بنجاح'),
         'data'    => $review
     ]);
 }

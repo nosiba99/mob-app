@@ -1,0 +1,18 @@
+{
+    "Area created successfully": "تم إنشاء المنطقة بنجاح",
+    "Area deleted successfully": "تم حذف المنطقة بنجاح",
+    "Area not found": "المنطقة غير موجودة",
+    "Areas retrieved successfully": "تم جلب المناطق بنجاح",
+    "Cannot delete area because delivery employees are assigned to it": "لا يمكن حذف المنطقة لوجود موظفي توصيل مرتبطين فيها",
+    "Cannot delete delivery employee because they have active orders": "لا يمكن حذف الموظف لوجود طلبات نشطة مرتبطة فيه",
+    "Color added successfully": "تمت إضافة اللون بنجاح",
+    "Colors fetched successfully": "تم جلب الألوان بنجاح",
+    "Delivery employee created successfully": "تم إنشاء موظف التوصيل بنجاح",
+    "Delivery employee deleted successfully": "تم حذف موظف التوصيل بنجاح",
+    "Delivery employee not found": "موظف التوصيل غير موجود",
+    "Delivery employee retrieved successfully": "تم جلب بيانات موظف التوصيل بنجاح",
+    "Delivery employee updated successfully": "تم تعديل بيانات موظف التوصيل بنجاح",
+    "Delivery employees retrieved successfully": "تم جلب موظفي التوصيل بنجاح",
+    "Sizes fetched successfully": "تم جلب المقاسات بنجاح",
+    "Unauthorized": "غير مصرح لك بهذا الإجراء"
+}

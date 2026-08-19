@@ -41,10 +41,10 @@ public function send(Request $request, $orderId)
     $order = Order::find($orderId);
 
     if (!$order) {
-        return $this->error('الطلب غير موجود', 404);
+        return $this->error(__('الطلب غير موجود'), 404);
     }
 
-    // المحادثة مسموحة طول ما الطلب "مقبول" أو "بالطريق"
+    // منع المراسلة قبل قبول الطلب
     $activeStatuses = [
         Order::STATUS_ACCEPTED,
         Order::STATUS_ON_THE_WAY,
@@ -53,7 +53,7 @@ public function send(Request $request, $orderId)
     if (!in_array($order->status, $activeStatuses)) {
 
         if ($order->status === Order::STATUS_DELIVERED) {
-            return $this->error('تم تسليم الطلب، انتهت صلاحية المحادثة', 403);
+            return $this->error(__('تم تسليم الطلب، انتهت صلاحية المحادثة'), 403);
         }
 
         if (in_array($order->status, [
@@ -61,10 +61,10 @@ public function send(Request $request, $orderId)
             Order::STATUS_REJECTED,
             Order::STATUS_RETURNED
         ])) {
-            return $this->error('لا يمكن المراسلة على هذا الطلب', 403);
+            return $this->error(__('لا يمكن المراسلة على هذا الطلب'), 403);
         }
 
-        return $this->error('لا يمكن بدء المحادثة قبل قبول الطلب من المندوب', 403);
+        return $this->error(__('لا يمكن بدء المحادثة قبل قبول الطلب من المندوب'), 403);
     }
 
     // تحديد المستقبل
@@ -73,11 +73,11 @@ public function send(Request $request, $orderId)
     } elseif ($user->role === 'delivery') {
         $receiverId = $order->user_id;
     } else {
-        return $this->error('غير مسموح', 403);
+        return $this->error(__('غير مسموح'), 403);
     }
 
     if (!$receiverId) {
-        return $this->error('لا يوجد مندوب مرتبط بهذا الطلب بعد', 400);
+        return $this->error(__('لا يوجد مندوب مرتبط بهذا الطلب بعد'), 400);
     }
 
     $msg = OrderMessage::create([
@@ -89,7 +89,7 @@ public function send(Request $request, $orderId)
 
     event(new AdminNewMessage($msg));
 
-    return $this->success('تم إرسال الرسالة', $msg);
+    return $this->success(__('تم إرسال الرسالة'), $msg);
 }
 
 
@@ -101,11 +101,11 @@ public function send(Request $request, $orderId)
         $order = Order::find($orderId);
 
         if (!$order) {
-            return $this->error('الطلب غير موجود', 404);
+            return $this->error(__('الطلب غير موجود'), 404);
         }
 
         if (!in_array($user->id, [$order->user_id, $order->delivery_id])) {
-            return $this->error('غير مسموح', 403);
+            return $this->error(__('غير مسموح'), 403);
         }
 
        $messages = OrderMessage::where('order_id', $orderId)
@@ -113,7 +113,7 @@ public function send(Request $request, $orderId)
     ->orderBy('id', 'asc')
     ->get();
 
-return $this->success('تم جلب الرسائل', OrderMessageResource::collection($messages));
+return $this->success(__('تم جلب الرسائل'), OrderMessageResource::collection($messages));
 
 }
 

@@ -52,7 +52,7 @@ class CartController extends Controller
 
     return response()->json([
         'status'  => true,
-        'message' => 'تمت إضافة المنتج للسلة بنجاح',
+        'message' => __('تمت إضافة المنتج للسلة بنجاح'),
     ]);
 }
 
@@ -69,14 +69,14 @@ class CartController extends Controller
         if ($items->isEmpty()) {
             return response()->json([
                 'status' => true,
-                'message' => 'السلة فارغة',
+                'message' => __('السلة فارغة'),
                 'data' => []
             ]);
         }
 
         return response()->json([
             'status' => true,
-            'message' => 'سلة المستخدم',
+            'message' => __('سلة المستخدم'),
             'data' => $items
         ]);
     }
@@ -97,7 +97,7 @@ class CartController extends Controller
         if (!$cartItem) {
             return response()->json([
                 'status' => false,
-                'message' => 'العنصر غير موجود داخل السلة',
+                'message' => __('العنصر غير موجود داخل السلة'),
                 'data' => null
             ], 404);
         }
@@ -107,7 +107,7 @@ class CartController extends Controller
 
         return response()->json([
             'status' => true,
-            'message' => 'تم تحديث الكمية',
+            'message' => __('تم تحديث الكمية'),
             'data' => $cartItem
         ]);
     }
@@ -124,7 +124,7 @@ class CartController extends Controller
         if (!$cartItem) {
             return response()->json([
                 'status' => false,
-                'message' => 'العنصر المطلوب غير موجود داخل السلة',
+                'message' => __('العنصر المطلوب غير موجود داخل السلة'),
                 'data' => null
             ], 404);
         }
@@ -133,7 +133,7 @@ class CartController extends Controller
 
         return response()->json([
             'status' => true,
-            'message' => 'تم حذف العنصر من السلة',
+            'message' => __('تم حذف العنصر من السلة'),
             'data' => null
         ]);
     }
@@ -148,7 +148,7 @@ class CartController extends Controller
         if (!$items->exists()) {
             return response()->json([
                 'status' => true,
-                'message' => 'السلة فارغة بالفعل',
+                'message' => __('السلة فارغة بالفعل'),
                 'data' => null
             ]);
         }
@@ -157,7 +157,7 @@ class CartController extends Controller
 
         return response()->json([
             'status' => true,
-            'message' => 'تم تفريغ السلة بالكامل',
+            'message' => __('تم تفريغ السلة بالكامل'),
             'data' => null
         ]);
     }
